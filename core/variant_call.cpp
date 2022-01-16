@@ -613,6 +613,16 @@ struct _VariantCall {
 		r_ret = s;
 	}
 
+	static void _call_PoolByteArray_get_string_from_utf16(Variant &r_ret, Variant &p_self, const Variant **p_args) {
+		PoolByteArray *ba = reinterpret_cast<PoolByteArray *>(p_self._data._mem);
+		String s;
+		if (ba->size() > 0) {
+			PoolByteArray::Read r = ba->read();
+			s.parse_utf16((const uint16_t *)r.ptr(), ba->size());
+		}
+		r_ret = s;
+	}
+
 	static void _call_PoolByteArray_compress(Variant &r_ret, Variant &p_self, const Variant **p_args) {
 		PoolByteArray *ba = reinterpret_cast<PoolByteArray *>(p_self._data._mem);
 		PoolByteArray compressed;
@@ -1927,6 +1937,7 @@ void register_variant_methods() {
 
 	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, get_string_from_ascii, varray());
 	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, get_string_from_utf8, varray());
+	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, get_string_from_utf16, varray());
 	ADDFUNC0R(POOL_BYTE_ARRAY, STRING, PoolByteArray, hex_encode, varray());
 	ADDFUNC1R(POOL_BYTE_ARRAY, POOL_BYTE_ARRAY, PoolByteArray, compress, INT, "compression_mode", varray(0));
 	ADDFUNC2R(POOL_BYTE_ARRAY, POOL_BYTE_ARRAY, PoolByteArray, decompress, INT, "buffer_size", INT, "compression_mode", varray(0));

@@ -1440,9 +1440,9 @@ String String::utf8(const char *p_utf8, int p_len) {
 	return ret;
 };
 
-bool String::parse_utf8(const char *p_utf8, int p_len) {
 #define _UNICERROR(m_err) print_line("Unicode error: " + String(m_err));
 
+bool String::parse_utf8(const char *p_utf8, int p_len) {
 	if (!p_utf8) {
 		return true;
 	}
@@ -1591,6 +1591,87 @@ bool String::parse_utf8(const char *p_utf8, int p_len) {
 		}
 		cstr_size -= len;
 		p_utf8 += len;
+	}
+
+	return false;
+}
+
+bool String::parse_utf16(const uint16_t *p_utf16, int p_len) {
+	if (!p_utf16) {
+		return true;
+	}
+
+	if (p_len & 1) {
+		_UNICERROR("odd number of bytes");
+		return true;
+	} 
+	
+	int cstr_size = 0;
+	int str_size = 0;
+
+	{
+		const uint16_t *ptrtmp = p_utf16;
+		const uint16_t *ptrtmp_limit = &p_utf16[p_len];
+		int skip = 0;
+		while (ptrtmp != ptrtmp_limit && *ptrtmp) {
+			if (skip == 0) {
+				uint8_t c = *ptrtmp >= 0 ? *ptrtmp : uint16_t(0xFFFF + *ptrtmp);
+
+				/* Determine the number of characters in sequence */
+				if ((c & 0xD800) == 0xD800) {
+					skip = 1;
+				}
+
+				str_size++;
+			} else {
+				--skip;
+			}
+
+			cstr_size++;
+			ptrtmp++;
+		}
+	}
+
+	resize(str_size + 1);
+	CharType *dst = ptrw();
+	dst[str_size] = 0;
+
+	while (cstr_size) {
+		int len = 1;
+
+		/* Determine the number of characters in sequence */
+		if ((*p_utf16 & 0xD800) == 0xD800) {
+			len = 2;
+		}
+
+		if (len > cstr_size) {
+			_UNICERROR("no space left");
+			return true; //not enough space
+		}
+
+		uint32_t unichar = 0;
+
+		if (len == 1) {
+			unichar = *p_utf16;
+		} else {
+			if ((p_utf16[1] & 0xDC00) == 0xDC00) {
+				unichar = (((p_utf16[0] ^ 0xD800) << 10) | (p_utf16[1] ^ 0xDC00)) + 0x10000;
+			} else {
+				_UNICERROR("invalid utf16");
+				return true;
+			}
+		}
+
+		if (sizeof(wchar_t) == 2 && unichar > 0x10FFFF) {
+			unichar = ' '; // invalid character, too long to encode as surrogates.
+		} else if (sizeof(wchar_t) == 2 && unichar > 0xFFFF) {
+			*(dst++) = uint32_t((unichar >> 10) + 0xD7C0); // lead surrogate.
+			*(dst++) = uint32_t((unichar & 0x3FF) | 0xDC00); // trail surrogate.
+		} else {
+			*(dst++) = unichar;
+		}
+		cstr_size -= len;
+		p_utf16 += len;
 	}
 
 	return false;
