@@ -54,6 +54,7 @@ class InputEvent : public Resource {
 	GDCLASS(InputEvent, Resource);
 
 	int device = 0;
+	uint64_t timestamp = -1;
 
 protected:
 	bool canceled = false;
@@ -91,6 +92,13 @@ public:
 	virtual bool accumulate(const Ref<InputEvent> &p_event) { return false; }
 
 	InputEvent() {}
+
+	int64_t get_timestamp() const {
+		return timestamp;
+	}
+	void set_timestamp(const uint64_t &p_timestamp) {
+		timestamp = p_timestamp;
+	}
 };
 
 class InputEventFromWindow : public InputEvent {
