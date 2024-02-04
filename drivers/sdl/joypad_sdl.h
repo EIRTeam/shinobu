@@ -47,6 +47,10 @@ public:
 	Error initialize();
 	void process_events();
 
+	bool is_device_game_controller(int p_device_idx) const;
+	StringName get_device_guid(int p_device_idx) const;
+	uint64_t get_sdl_time_nsec() const;
+
 private:
 	class Joypad : public Input::JoypadFeatures {
 	public:
@@ -71,4 +75,5 @@ private:
 	HashMap<SDL_JoystickID, int> sdl_instance_id_to_joypad_id;
 
 	void close_joypad(int p_pad_idx);
+	static uint64_t get_time();
 };

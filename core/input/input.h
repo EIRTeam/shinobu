@@ -261,8 +261,8 @@ private:
 	void _get_mapped_hat_events(const JoyDeviceMapping &mapping, HatDir p_hat, JoyEvent r_events[(size_t)HatDir::MAX]);
 	JoyButton _get_output_button(const String &output);
 	JoyAxis _get_output_axis(const String &output);
-	void _button_event(int p_device, JoyButton p_index, bool p_pressed);
-	void _axis_event(int p_device, JoyAxis p_axis, float p_value);
+	void _button_event(int p_device, JoyButton p_index, bool p_pressed, int64_t p_timestamp = -1);
+	void _axis_event(int p_device, JoyAxis p_axis, float p_value, int64_t p_timestamp = -1);
 	void _update_action_cache(const StringName &p_action_name, ActionState &r_action_state);
 	void _update_joypad_features(int p_device);
 
@@ -385,9 +385,9 @@ public:
 	void set_custom_mouse_cursor(const Ref<Resource> &p_cursor, CursorShape p_shape = Input::CURSOR_ARROW, const Vector2 &p_hotspot = Vector2());
 
 	void parse_mapping(const String &p_mapping);
-	void joy_button(int p_device, JoyButton p_button, bool p_pressed);
-	void joy_axis(int p_device, JoyAxis p_axis, float p_value);
-	void joy_hat(int p_device, BitField<HatMask> p_val);
+	void joy_button(int p_device, JoyButton p_button, bool p_pressed, int64_t p_timestamp = -1);
+	void joy_axis(int p_device, JoyAxis p_axis, float p_value, int64_t p_timestamp = -1);
+	void joy_hat(int p_device, BitField<HatMask> p_val, int64_t p_timestamp = -1);
 
 	void add_joy_mapping(const String &p_mapping, bool p_update_existing = false);
 	void remove_joy_mapping(const String &p_guid);

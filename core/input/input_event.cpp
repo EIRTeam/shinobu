@@ -130,6 +130,10 @@ void InputEvent::_bind_methods() {
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "device"), "set_device", "get_device");
 
+	ClassDB::bind_method(D_METHOD("get_timestamp_usec"), &InputEvent::get_timestamp_usec);
+	ClassDB::bind_method(D_METHOD("set_timestamp_usec", "timestamp"), &InputEvent::set_timestamp_usec);
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "timestamp_usec"), "set_timestamp_usec", "get_timestamp_usec");
+
 	BIND_CONSTANT(DEVICE_ID_EMULATION);
 }
 

@@ -42,6 +42,7 @@
 #include <SDL3/SDL_gamepad.h>
 #include <SDL3/SDL_iostream.h>
 #include <SDL3/SDL_joystick.h>
+#include <SDL3/SDL_timer.h>
 
 JoypadSDL *JoypadSDL::singleton = nullptr;
 
@@ -91,6 +92,10 @@ Error JoypadSDL::initialize() {
 
 	print_verbose("SDL: Init OK!");
 	return OK;
+}
+
+uint64_t nsec_to_usec(uint64_t p_nsec) {
+	return p_nsec / 1000;
 }
 
 void JoypadSDL::process_events() {
@@ -215,7 +220,7 @@ void JoypadSDL::process_events() {
 					Input::get_singleton()->joy_axis(
 							joy_id,
 							static_cast<JoyAxis>(sdl_event.jaxis.axis), // Godot joy axis constants are already intentionally the same as SDL's
-							((sdl_event.jaxis.value - SDL_JOYSTICK_AXIS_MIN) / (float)(SDL_JOYSTICK_AXIS_MAX - SDL_JOYSTICK_AXIS_MIN) - 0.5f) * 2.0f);
+							((sdl_event.jaxis.value - SDL_JOYSTICK_AXIS_MIN) / (float)(SDL_JOYSTICK_AXIS_MAX - SDL_JOYSTICK_AXIS_MIN) - 0.5f) * 2.0f, nsec_to_usec(sdl_event.jaxis.timestamp));
 					break;
 
 				case SDL_EVENT_JOYSTICK_BUTTON_UP:
@@ -231,7 +236,7 @@ void JoypadSDL::process_events() {
 					Input::get_singleton()->joy_button(
 							joy_id,
 							static_cast<JoyButton>(sdl_event.jbutton.button), // Godot button constants are intentionally the same as SDL's, so we can just straight up use them
-							sdl_event.jbutton.down);
+							sdl_event.jbutton.down, nsec_to_usec(sdl_event.common.timestamp));
 					break;
 
 				case SDL_EVENT_JOYSTICK_HAT_MOTION:
@@ -239,8 +244,8 @@ void JoypadSDL::process_events() {
 
 					Input::get_singleton()->joy_hat(
 							joy_id,
-							(HatMask)sdl_event.jhat.value // Godot hat masks are identical to SDL hat masks, so we can just use them as-is.
-					);
+							(HatMask)sdl_event.jhat.value, // Godot hat masks are identical to SDL hat masks, so we can just use them as-is.
+							nsec_to_usec(sdl_event.common.timestamp));
 					break;
 
 				case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
@@ -258,7 +263,8 @@ void JoypadSDL::process_events() {
 					Input::get_singleton()->joy_axis(
 							joy_id,
 							static_cast<JoyAxis>(sdl_event.gaxis.axis), // Godot joy axis constants are already intentionally the same as SDL's
-							axis_value);
+							axis_value,
+							nsec_to_usec(sdl_event.common.timestamp));
 				} break;
 
 				// Do note SDL gamepads do not have separate events for the dpad
@@ -267,11 +273,28 @@ void JoypadSDL::process_events() {
 					Input::get_singleton()->joy_button(
 							joy_id,
 							static_cast<JoyButton>(sdl_event.gbutton.button), // Godot button constants are intentionally the same as SDL's, so we can just straight up use them
-							sdl_event.gbutton.down);
+							sdl_event.gbutton.down,
+							nsec_to_usec(sdl_event.common.timestamp));
 					break;
 			}
 		}
 	}
+}
+
+bool JoypadSDL::is_device_game_controller(int p_device_idx) const {
+	ERR_FAIL_INDEX_V(p_device_idx, Input::JOYPADS_MAX, false);
+	ERR_FAIL_COND_V(!joypads[p_device_idx].attached, false);
+	return SDL_IsGamepad(joypads[p_device_idx].sdl_instance_idx);
+}
+
+StringName JoypadSDL::get_device_guid(int p_device_idx) const {
+	ERR_FAIL_INDEX_V(p_device_idx, Input::JOYPADS_MAX, StringName());
+	ERR_FAIL_COND_V(!joypads[p_device_idx].attached, StringName());
+	return joypads[p_device_idx].guid;
+}
+
+uint64_t JoypadSDL::get_sdl_time_nsec() const {
+	return SDL_GetTicksNS();
 }
 
 void JoypadSDL::close_joypad(int p_pad_idx) {
@@ -287,6 +310,10 @@ void JoypadSDL::close_joypad(int p_pad_idx) {
 		SDL_Joystick *joy = SDL_GetJoystickFromID(sdl_instance_idx);
 		SDL_CloseJoystick(joy);
 	}
+}
+
+uint64_t JoypadSDL::get_time() {
+	return SDL_GetTicksNS();
 }
 
 bool JoypadSDL::Joypad::has_joy_light() const {
