@@ -1649,7 +1649,7 @@ void Input::set_event_dispatch_function(EventDispatchFunc p_function) {
 	event_dispatch_function = p_function;
 }
 
-void Input::joy_button(int p_device, JoyButton p_button, bool p_pressed) {
+void Input::joy_button(int p_device, JoyButton p_button, bool p_pressed, int64_t p_timestamp) {
 	_THREAD_SAFE_METHOD_;
 
 	if (_should_ignore_joypad_events()) {
@@ -1664,24 +1664,24 @@ void Input::joy_button(int p_device, JoyButton p_button, bool p_pressed) {
 	}
 	joy.last_buttons[(size_t)p_button] = p_pressed;
 	if (joy.mapping == -1) {
-		_button_event(p_device, p_button, p_pressed);
+		_button_event(p_device, p_button, p_pressed, p_timestamp);
 		return;
 	}
 
 	JoyEvent map = _get_mapped_button_event(map_db[joy.mapping], p_button);
 
 	if (map.type == TYPE_BUTTON) {
-		_button_event(p_device, (JoyButton)map.index, p_pressed);
+		_button_event(p_device, (JoyButton)map.index, p_pressed, p_timestamp);
 		return;
 	}
 
 	if (map.type == TYPE_AXIS) {
-		_axis_event(p_device, (JoyAxis)map.index, p_pressed ? map.value : 0.0);
+		_axis_event(p_device, (JoyAxis)map.index, p_pressed ? map.value : 0.0, p_timestamp);
 	}
 	// no event?
 }
 
-void Input::joy_axis(int p_device, JoyAxis p_axis, float p_value) {
+void Input::joy_axis(int p_device, JoyAxis p_axis, float p_value, int64_t p_timestamp) {
 	_THREAD_SAFE_METHOD_;
 
 	if (_should_ignore_joypad_events()) {
@@ -1709,29 +1709,29 @@ void Input::joy_axis(int p_device, JoyAxis p_axis, float p_value) {
 	if (map.type == TYPE_BUTTON) {
 		bool pressed = map.value > 0.5;
 		if (pressed != joy_buttons_pressed.has(_combine_device((JoyButton)map.index, p_device))) {
-			_button_event(p_device, (JoyButton)map.index, pressed);
+			_button_event(p_device, (JoyButton)map.index, pressed, p_timestamp);
 		}
 
 		// Ensure opposite D-Pad button is also released.
 		switch ((JoyButton)map.index) {
 			case JoyButton::DPAD_UP:
 				if (joy_buttons_pressed.has(_combine_device(JoyButton::DPAD_DOWN, p_device))) {
-					_button_event(p_device, JoyButton::DPAD_DOWN, false);
+					_button_event(p_device, JoyButton::DPAD_DOWN, false, p_timestamp);
 				}
 				break;
 			case JoyButton::DPAD_DOWN:
 				if (joy_buttons_pressed.has(_combine_device(JoyButton::DPAD_UP, p_device))) {
-					_button_event(p_device, JoyButton::DPAD_UP, false);
+					_button_event(p_device, JoyButton::DPAD_UP, false, p_timestamp);
 				}
 				break;
 			case JoyButton::DPAD_LEFT:
 				if (joy_buttons_pressed.has(_combine_device(JoyButton::DPAD_RIGHT, p_device))) {
-					_button_event(p_device, JoyButton::DPAD_RIGHT, false);
+					_button_event(p_device, JoyButton::DPAD_RIGHT, false, p_timestamp);
 				}
 				break;
 			case JoyButton::DPAD_RIGHT:
 				if (joy_buttons_pressed.has(_combine_device(JoyButton::DPAD_LEFT, p_device))) {
-					_button_event(p_device, JoyButton::DPAD_LEFT, false);
+					_button_event(p_device, JoyButton::DPAD_LEFT, false, p_timestamp);
 				}
 				break;
 			default:
@@ -1750,12 +1750,12 @@ void Input::joy_axis(int p_device, JoyAxis p_axis, float p_value) {
 			value = 0.5f + value / 2.0f;
 		}
 #endif
-		_axis_event(p_device, axis, value);
+		_axis_event(p_device, axis, value, p_timestamp);
 		return;
 	}
 }
 
-void Input::joy_hat(int p_device, BitField<HatMask> p_val) {
+void Input::joy_hat(int p_device, BitField<HatMask> p_val, int64_t p_timestamp) {
 	_THREAD_SAFE_METHOD_;
 
 	if (_should_ignore_joypad_events()) {
@@ -1791,10 +1791,10 @@ void Input::joy_hat(int p_device, BitField<HatMask> p_val) {
 	for (int hat_direction = 0, hat_mask = 1; hat_direction < (int)HatDir::MAX; hat_direction++, hat_mask <<= 1) {
 		if (((int)p_val & hat_mask) != (cur_val & hat_mask)) {
 			if (map[hat_direction].type == TYPE_BUTTON) {
-				_button_event(p_device, (JoyButton)map[hat_direction].index, (int)p_val & hat_mask);
+				_button_event(p_device, (JoyButton)map[hat_direction].index, (int)p_val & hat_mask, p_timestamp);
 			}
 			if (map[hat_direction].type == TYPE_AXIS) {
-				_axis_event(p_device, (JoyAxis)map[hat_direction].index, ((int)p_val & hat_mask) ? map[hat_direction].value : 0.0);
+				_axis_event(p_device, (JoyAxis)map[hat_direction].index, ((int)p_val & hat_mask) ? map[hat_direction].value : 0.0, p_timestamp);
 			}
 		}
 	}
@@ -1823,22 +1823,24 @@ void Input::joy_motion_sensors(int p_device, const Vector3 &p_accelerometer, con
 	motion->gamepad_motion->ProcessMotion(gyro_degrees.x, gyro_degrees.y, gyro_degrees.z, accel_g.x, accel_g.y, accel_g.z, delta_time);
 }
 
-void Input::_button_event(int p_device, JoyButton p_index, bool p_pressed) {
+void Input::_button_event(int p_device, JoyButton p_index, bool p_pressed, int64_t p_timestamp) {
 	Ref<InputEventJoypadButton> ievent;
 	ievent.instantiate();
 	ievent->set_device(p_device);
 	ievent->set_button_index(p_index);
 	ievent->set_pressed(p_pressed);
+	ievent->set_timestamp_usec(p_timestamp);
 
 	parse_input_event(ievent);
 }
 
-void Input::_axis_event(int p_device, JoyAxis p_axis, float p_value) {
+void Input::_axis_event(int p_device, JoyAxis p_axis, float p_value, int64_t p_timestamp) {
 	Ref<InputEventJoypadMotion> ievent;
 	ievent.instantiate();
 	ievent->set_device(p_device);
 	ievent->set_axis(p_axis);
 	ievent->set_axis_value(p_value);
+	ievent->set_timestamp_usec(p_timestamp);
 
 	parse_input_event(ievent);
 }
