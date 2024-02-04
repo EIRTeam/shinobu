@@ -51,6 +51,10 @@
 #include "drivers/gles3/rasterizer_gles3.h"
 #endif
 
+#ifdef SDL_ENABLED
+#include "drivers/sdl/joypad_sdl.h"
+#endif
+
 #include <avrt.h>
 #include <dwmapi.h>
 #include <propkey.h>
@@ -3549,12 +3553,13 @@ String DisplayServerWindows::keyboard_get_layout_name(int p_index) const {
 void DisplayServerWindows::process_events() {
 	ERR_FAIL_COND(!Thread::is_main_thread());
 
-	if (!drop_events) {
+	if (!drop_events && joypad) {
 		joypad->process_joypads();
 	}
 
 	_THREAD_SAFE_LOCK_
 	MSG msg = {};
+
 	while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
 		TranslateMessage(&msg);
 		DispatchMessageW(&msg);
@@ -3564,6 +3569,11 @@ void DisplayServerWindows::process_events() {
 	if (tts) {
 		tts->process_events();
 	}
+#ifdef SDL_ENABLED
+	if (!drop_events && joypad_sdl) {
+		joypad_sdl->process_events();
+	}
+#endif
 
 	if (!drop_events) {
 		_process_key_events();
@@ -5739,7 +5749,9 @@ LRESULT DisplayServerWindows::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 		} break;
 		case WM_DEVICECHANGE: {
-			joypad->probe_joypads();
+			if (joypad) {
+				joypad->probe_joypads();
+			}
 		} break;
 		case WM_DESTROY: {
 			Input::get_singleton()->flush_buffered_events();
@@ -6878,8 +6890,19 @@ DisplayServerWindows::DisplayServerWindows(const String &p_rendering_driver, Win
 		ERR_FAIL_MSG("Failed to create main window.");
 	}
 
+#ifdef SDL_ENABLED
+	joypad_sdl = memnew(JoypadSDL(Input::get_singleton()));
+	if (joypad_sdl->initialize() != OK) {
+		// SDL init failed, fallback to the native driver
+		memdelete(joypad_sdl);
+		joypad_sdl = nullptr;
+	}
+	if (!joypad_sdl) {
+		joypad = new JoypadWindows(&windows[MAIN_WINDOW_ID].hWnd);
+	}
+#else
 	joypad = new JoypadWindows(&windows[MAIN_WINDOW_ID].hWnd);
-
+#endif
 	for (int i = 0; i < WINDOW_FLAG_MAX; i++) {
 		if (p_flags & (1 << i)) {
 			window_set_flag(WindowFlags(i), true, main_window);
@@ -7012,7 +7035,15 @@ DisplayServerWindows::~DisplayServerWindows() {
 		E->erase();
 	}
 
-	delete joypad;
+#ifdef SDL_ENABLED
+	if (joypad_sdl) {
+		memdelete(joypad_sdl);
+	}
+#endif
+	if (joypad) {
+		delete joypad;
+	}
+
 	touch_state.clear();
 
 	cursors_cache.clear();

@@ -223,6 +223,12 @@ def get_opts():
             "Path to the PIX runtime distribution (optional for D3D12)",
             os.path.join(d3d12_deps_folder, "pix"),
         ),
+        # SDL
+        (
+            "sdl_path",
+            "Path to the SDL development libraries",
+            None,
+        ),
     ]
 
 
@@ -601,6 +607,21 @@ def configure_msvc(env: "SConsEnvironment", vcvars_msvc_config):
     env["BUILDERS"]["ProgramOriginal"] = env["BUILDERS"]["Program"]
     env["BUILDERS"]["Program"] = methods.precious_program
 
+    if env["sdl"]:
+        if not os.path.exists(env["sdl_path"]):
+            print("The SDL input driver requires dependencies to be installed.")
+            sys.exit(255)
+        if env["arch"] not in ["x86_64", "x86_32"]:
+            print("The SDL subsystem is only supported on x86")
+            sys.exit(255)
+
+        arch_subdir = "x64" if env["arch"].endswith("64") else "x86"
+
+        env.Append(LIBPATH=[env["sdl_path"] + "/lib/" + arch_subdir])
+        env.Append(CPPPATH=[env["sdl_path"] + "/include"])
+        env.AppendUnique(CPPDEFINES=["SDL_ENABLED"])
+        env.Append(LIBS=["SDL2"])
+
     env.Append(LINKFLAGS=["/NATVIS:platform\\windows\\godot.natvis"])
 
     if env["use_asan"]:
@@ -894,6 +915,16 @@ def configure_mingw(env: "SConsEnvironment"):
             )
             env.Append(LIBS=["dxgi", "d3d9", "d3d11"])
         env.Prepend(CPPPATH=["#thirdparty/angle/include"])
+
+    if env["sdl"]:
+        if not os.path.exists(env["sdl_path"]):
+            print("The SDL input driver requires dependencies to be installed.")
+            sys.exit(255)
+
+        env.Append(LIBPATH=[env["sdl_path"] + "/lib"])
+        env.Append(CPPPATH=[env["sdl_path"] + "/include"])
+        env.AppendUnique(CPPDEFINES=["SDL_ENABLED"])
+        env.Append(LIBS=["libSDL2.dll"])
 
     env.Append(CPPDEFINES=["MINGW_ENABLED", ("MINGW_HAS_SECURE_API", 1)])
 

@@ -361,6 +361,7 @@ typedef enum _SHC_PROCESS_DPI_AWARENESS {
 #endif
 
 class DropTargetWindows;
+class JoypadSDL;
 
 #ifndef WDA_EXCLUDEFROMCAPTURE
 #define WDA_EXCLUDEFROMCAPTURE 0x00000011
@@ -553,6 +554,7 @@ class DisplayServerWindows : public DisplayServer {
 	};
 
 	JoypadWindows *joypad = nullptr;
+	JoypadSDL *joypad_sdl = nullptr;
 	HHOOK mouse_monitor = nullptr;
 	List<WindowID> popup_list;
 	uint64_t time_since_popup = 0;
