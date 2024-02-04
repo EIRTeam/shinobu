@@ -336,6 +336,17 @@ def configure(env: "SConsEnvironment"):
         else:
             env.Append(CPPDEFINES=["PULSEAUDIO_ENABLED", "_REENTRANT"])
 
+    if env["sdl"]:
+        if not env["use_sowrap"]:
+            if os.system("pkg-config --exists sdl2") == 0:  # 0 means found
+                env.ParseConfig("pkg-config sdl2 --cflags --libs")
+                env.Append(CPPDEFINES=["SDL_ENABLED"])
+            else:
+                print("Warning: SDL development libraries not found. Disabling the SDL input driver.")
+                env["sdl"] = False
+        else:
+            env.Append(CPPDEFINES=["SDL_ENABLED"])
+
     if env["dbus"]:
         if not env["use_sowrap"]:
             if os.system("pkg-config --exists dbus-1") == 0:  # 0 means found
