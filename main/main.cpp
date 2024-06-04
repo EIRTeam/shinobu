@@ -136,6 +136,10 @@
 #endif // TOOLS_ENABLED && !GDSCRIPT_NO_LSP
 #endif // MODULE_GDSCRIPT_ENABLED
 
+#ifdef USE_BREAKPAD
+#include "modules/breakpad/breakpad.h"
+#endif
+
 /* Static members */
 
 // Singletons
@@ -1910,6 +1914,10 @@ Error Main::setup(const char *execpath, int argc, char *argv[], bool p_second_ph
 
 		// Create initialization lock file to detect crashes during startup.
 		OS::get_singleton()->create_lock_file();
+
+#ifdef USE_BREAKPAD
+		report_user_data_dir_usable();
+#endif
 
 		main_args.push_back("--editor");
 		if (!init_windowed && !init_fullscreen) {
