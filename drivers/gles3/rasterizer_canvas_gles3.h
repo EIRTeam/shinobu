@@ -37,6 +37,7 @@
 #include "drivers/gles3/storage/material_storage.h"
 #include "servers/rendering/renderer_canvas_render.h"
 #include "servers/rendering/rendering_server_enums.h"
+#include "drivers/gles3/stencil_write_gles3.h"
 
 class RasterizerCanvasGLES3 : public RendererCanvasRender {
 	static RasterizerCanvasGLES3 *singleton;
@@ -150,6 +151,8 @@ class RasterizerCanvasGLES3 : public RendererCanvasRender {
 
 	static_assert(sizeof(LightUniform) % 16 == 0, "2D light UBO size must be a multiple of 16 bytes");
 
+	StencilWriteGLES3 stencil_write;
+
 public:
 	enum {
 		BASE_UNIFORM_LOCATION = 0,
@@ -161,7 +164,12 @@ public:
 
 	struct StateBuffer {
 		float canvas_transform[16];
+		float canvas_transform_3d[16];
+		float canvas_transform_inverse[16];
 		float screen_transform[16];
+		float screen_transform_3d[16];
+		float projection_matrix[16];
+		float view_matrix[16];
 		float canvas_normal_transform[16];
 		float canvas_modulate[4];
 
@@ -175,7 +183,7 @@ public:
 
 		uint32_t directional_light_count;
 		float tex_to_sdf;
-		uint32_t pad1;
+		uint32_t use_3d_transform;
 		uint32_t pad2;
 	};
 
@@ -355,10 +363,10 @@ public:
 	void _bind_canvas_texture(RID p_texture, RSE::CanvasItemTextureFilter p_base_filter, RSE::CanvasItemTextureRepeat p_base_repeat);
 	void _prepare_canvas_texture(RID p_texture, RSE::CanvasItemTextureFilter p_base_filter, RSE::CanvasItemTextureRepeat p_base_repeat, uint32_t &r_index, Size2 &r_texpixel_size);
 
-	void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_list, const Transform2D &p_canvas_transform, RSE::CanvasItemTextureFilter p_default_filter, RSE::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingServerTypes::RenderInfo *r_render_info = nullptr) override;
-	void _render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer = false, RenderingServerTypes::RenderInfo *r_render_info = nullptr, bool p_backbuffer_has_mipmaps = false);
+	void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_list, const Transform2D &p_canvas_transform, RendererCanvasRender::Canvas3DInfo *p_3d_info, RSE::CanvasItemTextureFilter p_default_filter, RSE::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingServerTypes::RenderInfo *r_render_info = nullptr) override;
+	void _render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, RendererCanvasRender::Canvas3DInfo *p_3d_info, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer = false, RenderingServerTypes::RenderInfo *r_render_info = nullptr, bool p_backbuffer_has_mipmaps = false);
 	void _record_item_commands(const Item *p_item, RID p_render_target, const Transform2D &p_canvas_transform_inverse, Item *&current_clip, GLES3::CanvasShaderData::BlendMode p_blend_mode, Light *p_lights, uint32_t &r_index, bool &r_break_batch, bool &r_sdf_used, const Point2 &p_repeat_offset);
-	void _render_batch(Light *p_lights, uint32_t p_index, RenderingServerTypes::RenderInfo *r_render_info = nullptr);
+	void _render_batch(Light *p_lights, uint32_t p_index, RendererCanvasRender::Canvas3DInfo *p_3d_info, RenderingServerTypes::RenderInfo *r_render_info = nullptr);
 	bool _bind_material(GLES3::CanvasMaterialData *p_material_data, CanvasShaderGLES3::ShaderVariant p_variant, uint64_t p_specialization);
 	void _new_batch(bool &r_batch_broken);
 	void _add_to_batch(uint32_t &r_index, bool &r_batch_broken);

@@ -57,6 +57,9 @@ class CanvasLayer : public Node {
 	bool follow_viewport = false;
 	float follow_viewport_scale = 1.0;
 
+	bool use_3d_transform = false;
+	Transform3D transform_3d;
+
 	void _update_xform();
 	void _update_locrotscale() const;
 	void _update_follow_viewport(bool p_force_exit = false);
@@ -64,6 +67,8 @@ class CanvasLayer : public Node {
 protected:
 	void _notification(int p_what);
 	static void _bind_methods();
+
+	void _validate_property(PropertyInfo &p_property) const;
 
 public:
 	void update_draw_order();
@@ -104,6 +109,12 @@ public:
 
 	void set_follow_viewport_scale(float p_ratio);
 	float get_follow_viewport_scale() const;
+
+	bool get_use_3d_transform() const;
+	void set_use_3d_transform(bool p_use_3d_transform);
+
+	Transform3D get_transform_3d() const;
+	void set_transform_3d(const Transform3D &p_transform_3d);
 
 	RID get_canvas() const;
 
