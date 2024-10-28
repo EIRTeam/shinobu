@@ -36,6 +36,7 @@
 #include "servers/rendering/renderer_rd/pipeline_hash_map_rd.h"
 #include "servers/rendering/renderer_rd/shaders/canvas.glsl.gen.h"
 #include "servers/rendering/renderer_rd/shaders/canvas_occlusion.glsl.gen.h"
+#include "servers/rendering/renderer_rd/stencil_write_rd.h"
 #include "servers/rendering/renderer_rd/storage_rd/material_storage.h"
 #include "servers/rendering/rendering_device.h"
 #include "servers/rendering/shader_compiler.h"
@@ -132,6 +133,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		ShaderSpecialization shader_specialization = {};
 		uint32_t lcd_blend = 0;
 		uint32_t ubershader = 0;
+		uint32_t stencil = 0;
 
 		uint32_t hash() const {
 			uint32_t h = hash_murmur3_one_32(variant);
@@ -141,6 +143,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 			h = hash_murmur3_one_32(shader_specialization.packed_0, h);
 			h = hash_murmur3_one_32(lcd_blend, h);
 			h = hash_murmur3_one_32(ubershader, h);
+			h = hash_murmur3_one_32(stencil, h);
 			return hash_fmix32(h);
 		}
 	};
@@ -488,12 +491,16 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 	typedef LRUCache<RIDSetKey, RID, HashableHasher<RIDSetKey>, HashMapComparatorDefault<RIDSetKey>, _before_evict> RIDCache;
 	RIDCache rid_set_to_uniform_set;
+	
+	StencilWriteRD stencil_write;
 
 	struct Batch {
 		// Position in the UBO measured in bytes
 		uint32_t start = 0;
 		uint32_t instance_count = 0;
 		uint32_t instance_buffer_index = 0;
+		int stencil_reference = false;
+		bool use_stencil_clipping = false;
 
 		TextureInfo *tex_info;
 
@@ -532,7 +539,12 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		//state buffer
 		struct Buffer {
 			float canvas_transform[16];
+			float canvas_transform_3d[16];
+			float canvas_transform_inverse[16];
 			float screen_transform[16];
+			float screen_transform_3d[16];
+			float projection_matrix[16];
+			float view_matrix[16];
 			float canvas_normal_transform[16];
 			float canvas_modulate[4];
 
@@ -547,7 +559,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 			uint32_t directional_light_count;
 			float tex_to_sdf;
 			uint32_t flags;
-			uint32_t pad2;
+			uint32_t use_3d_transform;
 		};
 
 		DataBuffer canvas_instance_data_buffers[BATCH_DATA_BUFFER_COUNT];
@@ -615,7 +627,9 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 	};
 
 	inline RID _get_pipeline_specialization_or_ubershader(CanvasShaderData *p_shader_data, PipelineKey &r_pipeline_key, PushConstant &r_push_constant, RID p_mesh_instance = RID(), void *p_surface = nullptr, uint32_t p_surface_index = 0, RID *r_vertex_array = nullptr);
-	void _render_batch_items(RenderTarget p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer = false, RenderingMethod::RenderInfo *r_render_info = nullptr);
+	void _prepare_stencil_write(RID p_render_target, bool p_to_backbuffer, RendererCanvasRender::Canvas3DInfo *p_3d_info);
+	void _write_to_stencil(RD::DrawListID p_draw_list, RID p_render_target, bool p_to_backbuffer, Rect2 p_rect, int p_stencil_ref);
+	void _render_batch_items(RenderTarget p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer = false, bool p_use_stencil_clipping = false, RenderingMethod::RenderInfo *r_render_info = nullptr);
 	void _record_item_commands(const Item *p_item, RenderTarget p_render_target, const Transform2D &p_base_transform, Item *&r_current_clip, Light *p_lights, uint32_t &r_index, bool &r_batch_broken, bool &r_sdf_used, Batch *&r_current_batch);
 	void _render_batch(RD::DrawListID p_draw_list, CanvasShaderData *p_shader_data, RenderingDevice::FramebufferFormatID p_framebuffer_format, Light *p_lights, Batch const *p_batch, RenderingMethod::RenderInfo *r_render_info = nullptr);
 	void _prepare_batch_texture_info(RID p_texture, TextureState &p_state, TextureInfo *p_info);
@@ -649,7 +663,7 @@ public:
 	void occluder_polygon_set_shape(RID p_occluder, const Vector<Vector2> &p_points, bool p_closed) override;
 	void occluder_polygon_set_cull_mode(RID p_occluder, RS::CanvasOccluderPolygonCullMode p_mode) override;
 
-	void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info = nullptr) override;
+	void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RendererCanvasRender::Canvas3DInfo *p_3d_info, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info = nullptr) override;
 
 	virtual void set_shadow_texture_size(int p_size) override;
 

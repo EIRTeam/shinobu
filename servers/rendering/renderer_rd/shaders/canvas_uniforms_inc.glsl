@@ -96,7 +96,12 @@ bool sc_use_lighting() {
 
 layout(set = 0, binding = 1, std140) uniform CanvasData {
 	mat4 canvas_transform;
+	mat4 canvas_transform_3d;
+	mat4 canvas_transform_inverse;
 	mat4 screen_transform;
+	mat4 screen_transform_3d;
+	mat4 projection_matrix;
+	mat4 view_matrix;
 	mat4 canvas_normal_transform;
 	vec4 canvas_modulation;
 	vec2 screen_pixel_size;
@@ -110,7 +115,7 @@ layout(set = 0, binding = 1, std140) uniform CanvasData {
 	uint directional_light_count;
 	float tex_to_sdf;
 	uint flags;
-	uint pad2;
+	bool use_3d_transform;
 }
 canvas_data;
 

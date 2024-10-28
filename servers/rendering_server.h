@@ -1010,6 +1010,8 @@ public:
 	virtual void viewport_attach_canvas(RID p_viewport, RID p_canvas) = 0;
 	virtual void viewport_remove_canvas(RID p_viewport, RID p_canvas) = 0;
 	virtual void viewport_set_canvas_transform(RID p_viewport, RID p_canvas, const Transform2D &p_offset) = 0;
+	virtual void viewport_set_canvas_use_3d_transform(RID p_viewport, RID p_canvas, bool p_use_3d_transform) = 0;
+	virtual void viewport_set_canvas_3d_transform(RID p_viewport, RID p_canvas, const Transform3D &p_offset) = 0;
 	virtual void viewport_set_transparent_background(RID p_viewport, bool p_enabled) = 0;
 	virtual void viewport_set_use_hdr_2d(RID p_viewport, bool p_use_hdr) = 0;
 	virtual bool viewport_is_using_hdr_2d(RID p_viewport) const = 0;

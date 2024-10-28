@@ -420,6 +420,7 @@ private:
 
 	void _gui_sort_roots();
 	Control *_gui_find_control_at_pos(CanvasItem *p_node, const Point2 &p_global, const Transform2D &p_xform);
+	bool _intersect_screen_with_3d(const CanvasLayer *p_canvas_layer, const Vector2 &p_position, Vector2 &r_out);
 
 	void _gui_input_event(Ref<InputEvent> p_event);
 	void _perform_drop(Control *p_control = nullptr);
@@ -649,7 +650,7 @@ public:
 	bool gui_is_drag_successful() const;
 	void gui_cancel_drag();
 
-	Control *gui_find_control(const Point2 &p_global);
+	Control *gui_find_control(const Point2 &p_global, Vector2 *r_mouse_screen_pos = nullptr);
 
 	void set_sdf_oversize(SDFOversize p_sdf_oversize);
 	SDFOversize get_sdf_oversize() const;

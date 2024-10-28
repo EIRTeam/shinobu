@@ -2834,6 +2834,8 @@ void RenderingServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("viewport_set_default_canvas_item_texture_filter", "viewport", "filter"), &RenderingServer::viewport_set_default_canvas_item_texture_filter);
 	ClassDB::bind_method(D_METHOD("viewport_set_default_canvas_item_texture_repeat", "viewport", "repeat"), &RenderingServer::viewport_set_default_canvas_item_texture_repeat);
 
+	ClassDB::bind_method(D_METHOD("viewport_set_canvas_use_3d_transform", "viewport", "canvas", "uses_3d_transform"), &RenderingServer::viewport_set_canvas_use_3d_transform);
+	ClassDB::bind_method(D_METHOD("viewport_set_canvas_3d_transform", "viewport", "canvas", "transform"), &RenderingServer::viewport_set_canvas_3d_transform);
 	ClassDB::bind_method(D_METHOD("viewport_set_canvas_transform", "viewport", "canvas", "offset"), &RenderingServer::viewport_set_canvas_transform);
 	ClassDB::bind_method(D_METHOD("viewport_set_canvas_stacking", "viewport", "canvas", "layer", "sublayer"), &RenderingServer::viewport_set_canvas_stacking);
 

@@ -1284,6 +1284,8 @@ public:
 	void draw_list_draw_indirect(DrawListID p_list, bool p_use_indices, RID p_buffer, uint32_t p_offset = 0, uint32_t p_draw_count = 1, uint32_t p_stride = 0);
 
 	void draw_list_set_viewport(DrawListID p_list, const Rect2 &p_rect);
+	void draw_list_set_stencil_ref(DrawListID p_list, int p_stencil_ref);
+
 	void draw_list_enable_scissor(DrawListID p_list, const Rect2 &p_rect);
 	void draw_list_disable_scissor(DrawListID p_list);
 

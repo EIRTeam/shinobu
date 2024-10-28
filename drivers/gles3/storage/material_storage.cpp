@@ -1156,6 +1156,7 @@ MaterialStorage::MaterialStorage() {
 		actions.renames["SPECULAR_SHININESS_TEXTURE"] = "specular_texture";
 		actions.renames["SPECULAR_SHININESS"] = "specular_shininess";
 		actions.renames["SCREEN_UV"] = "screen_uv";
+		actions.renames["CANVAS_COORD"] = "canvas_coord";
 		actions.renames["SCREEN_PIXEL_SIZE"] = "screen_pixel_size";
 		actions.renames["FRAGCOORD"] = "gl_FragCoord";
 		actions.renames["POINT_COORD"] = "gl_PointCoord";
@@ -1180,6 +1181,7 @@ MaterialStorage::MaterialStorage() {
 
 		actions.usage_defines["COLOR"] = "#define COLOR_USED\n";
 		actions.usage_defines["SCREEN_UV"] = "#define SCREEN_UV_USED\n";
+		actions.usage_defines["CANVAS_COORD"] = "#define CANVAS_COORD_USED\n";
 		actions.usage_defines["SCREEN_PIXEL_SIZE"] = "@SCREEN_UV";
 		actions.usage_defines["NORMAL"] = "#define NORMAL_USED\n";
 		actions.usage_defines["NORMAL_MAP"] = "#define NORMAL_MAP_USED\n";

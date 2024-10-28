@@ -4761,6 +4761,10 @@ void RenderingDeviceDriverVulkan::command_render_set_viewport(CommandBufferID p_
 	vkCmdSetViewport((VkCommandBuffer)p_cmd_buffer.id, 0, p_viewports.size(), vk_viewports);
 }
 
+void RenderingDeviceDriverVulkan::command_render_set_stencil_ref(CommandBufferID p_cmd_buffer, int p_stencil_ref) {
+	vkCmdSetStencilReference((VkCommandBuffer)p_cmd_buffer.id, VK_STENCIL_FRONT_AND_BACK, p_stencil_ref);
+}
+
 void RenderingDeviceDriverVulkan::command_render_set_scissor(CommandBufferID p_cmd_buffer, VectorView<Rect2i> p_scissors) {
 	vkCmdSetScissor((VkCommandBuffer)p_cmd_buffer.id, 0, p_scissors.size(), (VkRect2D *)p_scissors.ptr());
 }

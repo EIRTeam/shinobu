@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  canvas_layer.h                                                        */
+/*  stencil_write_rd.h                                                    */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,97 +28,53 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef CANVAS_LAYER_H
-#define CANVAS_LAYER_H
+#ifndef STENCIL_WRITE_RD_H
+#define STENCIL_WRITE_RD_H
 
-#include "scene/main/node.h"
+#include "core/math/transform_3d.h"
+#include "shaders/canvas_stencil_write.glsl.gen.h"
 
-class Viewport;
-class CanvasLayer : public Node {
-	GDCLASS(CanvasLayer, Node);
+class StencilWriteRD {
+	struct StencilWriteBuffer {
+		float canvas_transform[16];
+		float screen_transform[16];
+		float view[16];
+		float projection[16];
+	} buffer;
 
-	mutable bool locrotscale_dirty = false;
-	mutable Vector2 ofs;
-	mutable Size2 scale = Vector2(1, 1);
-	mutable real_t rot = 0.0;
-	int layer = 1;
-	Transform2D transform;
-	RID canvas;
+	RID stencil_write_uniform;
+	RID stencil_write_uniform_set;
 
-	ObjectID custom_viewport_id; // to check validity
-	Viewport *custom_viewport = nullptr;
+	RD::VertexFormatID vertex_format;
+	RID vertex_buffer;
+	RID vertex_array;
 
-	RID viewport;
-	Viewport *vp = nullptr;
+	struct StencilWritePushConstant {
+		float rect_pos[2];
+		float rect_size[2];
+	} push_constant;
 
-	int sort_index = 0;
-	bool visible = true;
+	struct {
+		CanvasStencilWriteShaderRD shader_rd;
+		RID version;
+		RID write_shader;
+	} write_shader;
 
-	bool follow_viewport = false;
-	float follow_viewport_scale = 1.0;
+	RID quad_vertex_format;
 
-	bool use_3d_transform = false;
-	Transform3D transform_3d;
-
-	void _update_xform();
-	void _update_locrotscale() const;
-	void _update_follow_viewport(bool p_force_exit = false);
-
-protected:
-	void _notification(int p_what);
-	static void _bind_methods();
-	void _validate_property(PropertyInfo &p_property) const;
+	HashMap<RenderingDevice::FramebufferFormatID, RID> pipelines;
 
 public:
-	void update_draw_order();
-
-	void set_layer(int p_xform);
-	int get_layer() const;
-
-	void set_visible(bool p_visible);
-	bool is_visible() const;
-	void show();
-	void hide();
-
-	void set_transform(const Transform2D &p_xform);
-	Transform2D get_transform() const;
-	Transform2D get_final_transform() const;
-
-	void set_offset(const Vector2 &p_offset);
-	Vector2 get_offset() const;
-
-	void set_rotation(real_t p_radians);
-	real_t get_rotation() const;
-
-	void set_scale(const Size2 &p_scale);
-	Size2 get_scale() const;
-
-	Size2 get_viewport_size() const;
-
-	RID get_viewport() const;
-
-	void set_custom_viewport(Node *p_viewport);
-	Node *get_custom_viewport() const;
-
-	void reset_sort_index();
-	int get_sort_index();
-
-	void set_follow_viewport(bool p_enable);
-	bool is_following_viewport() const;
-
-	void set_follow_viewport_scale(float p_ratio);
-	float get_follow_viewport_scale() const;
-
-	bool get_use_3d_transform() const;
-	void set_use_3d_transform(bool p_use_3d_transform);
-
-	Transform3D get_transform_3d() const;
-	void set_transform_3d(const Transform3D &p_transform_3d);
-
-	RID get_canvas() const;
-
-	CanvasLayer();
-	~CanvasLayer();
+	struct StencilWriteTransforms {
+		Transform3D canvas;
+		Transform3D screen;
+		Transform3D view;
+		Projection projection;
+	};
+	void initialize();
+	void setup_stencil_write(RenderingDevice::FramebufferFormatID p_format_id, const StencilWriteTransforms &p_write_transforms);
+	void do_stencil_write(RD::DrawListID p_draw_list, RD::FramebufferFormatID p_format, Rect2 p_rect, int p_layer);
+	~StencilWriteRD();
 };
 
-#endif // CANVAS_LAYER_H
+#endif // STENCIL_WRITE_RD_H

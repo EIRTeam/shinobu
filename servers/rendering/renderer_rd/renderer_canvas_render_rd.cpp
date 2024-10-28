@@ -35,6 +35,8 @@
 #include "core/math/math_defs.h"
 #include "core/math/math_funcs.h"
 #include "core/math/transform_interpolator.h"
+#include "renderer_compositor_rd.h"
+#include "servers/rendering/renderer_canvas_render.h"
 #include "servers/rendering/renderer_rd/storage_rd/material_storage.h"
 #include "servers/rendering/renderer_rd/storage_rd/mesh_storage.h"
 #include "servers/rendering/renderer_rd/storage_rd/particles_storage.h"
@@ -503,7 +505,37 @@ RID RendererCanvasRenderRD::_get_pipeline_specialization_or_ubershader(CanvasSha
 	return RID();
 }
 
-void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RenderingServer::CanvasItemTextureFilter p_default_filter, RenderingServer::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info) {
+void RendererCanvasRenderRD::_prepare_stencil_write(RID p_render_target, bool p_to_backbuffer, RendererCanvasRender::Canvas3DInfo *p_3d_info) {
+	RID framebuffer;
+	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
+	if (p_to_backbuffer) {
+		framebuffer = texture_storage->render_target_get_rd_backbuffer_framebuffer(p_render_target);
+	} else {
+		framebuffer = texture_storage->render_target_get_rd_framebuffer(p_render_target);
+	}
+
+	RD::FramebufferFormatID format = RD::get_singleton()->framebuffer_get_format(framebuffer);
+	StencilWriteRD::StencilWriteTransforms transforms = {
+		.canvas = p_3d_info->canvas_transform_3d,
+		.screen = p_3d_info->screen_transform_3d,
+		.view = p_3d_info->view,
+		.projection = p_3d_info->projection
+	};
+	stencil_write.setup_stencil_write(format, transforms);
+}
+
+void RendererCanvasRenderRD::_write_to_stencil(RD::DrawListID p_draw_list, RID p_render_target, bool p_to_backbuffer, Rect2 p_rect, int p_stencil_ref) {
+	RID framebuffer;
+	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
+	if (p_to_backbuffer) {
+		framebuffer = texture_storage->render_target_get_rd_backbuffer_framebuffer(p_render_target);
+	} else {
+		framebuffer = texture_storage->render_target_get_rd_framebuffer(p_render_target);
+	}
+	stencil_write.do_stencil_write(p_draw_list, RD::get_singleton()->framebuffer_get_format(framebuffer), p_rect, p_stencil_ref);
+}
+
+void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RendererCanvasRender::Canvas3DInfo *p_3d_info, RenderingServer::CanvasItemTextureFilter p_default_filter, RenderingServer::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info) {
 	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
 	RendererRD::MaterialStorage *material_storage = RendererRD::MaterialStorage::get_singleton();
 	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
@@ -677,8 +709,14 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 		Transform3D screen_transform;
 		screen_transform.translate_local(-(ssize.width / 2.0f), -(ssize.height / 2.0f), 0.0f);
 		screen_transform.scale(Vector3(2.0f / ssize.width, 2.0f / ssize.height, 1.0f));
+
 		_update_transform_to_mat4(screen_transform, state_buffer.screen_transform);
 		_update_transform_2d_to_mat4(p_canvas_transform, state_buffer.canvas_transform);
+		_update_transform_2d_to_mat4(p_canvas_transform.affine_inverse(), state_buffer.canvas_transform_inverse);
+		if (p_3d_info->use_3d) {
+			_update_transform_to_mat4(p_3d_info->screen_transform_3d, state_buffer.screen_transform_3d);
+			_update_transform_to_mat4(p_3d_info->canvas_transform_3d, state_buffer.canvas_transform_3d);
+		}
 
 		Transform2D normal_transform = p_canvas_transform;
 		normal_transform.columns[0].normalize();
@@ -701,6 +739,7 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 
 		state_buffer.time = state.time;
 		state_buffer.use_pixel_snap = p_snap_2d_vertices_to_pixel;
+		state_buffer.use_3d_transform = p_3d_info->use_3d;
 
 		state_buffer.directional_light_count = directional_light_count;
 
@@ -724,6 +763,8 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 		state_buffer.tex_to_sdf = 1.0 / ((canvas_scale.x + canvas_scale.y) * 0.5);
 
 		state_buffer.flags = use_linear_colors ? CANVAS_FLAGS_CONVERT_ATTRIBUTES_TO_LINEAR : 0;
+		RendererRD::MaterialStorage::store_transform(p_3d_info->view, state_buffer.view_matrix);
+		RendererRD::MaterialStorage::store_camera(p_3d_info->projection, state_buffer.projection_matrix);
 
 		RD::get_singleton()->buffer_update(state.canvas_state_buffer, 0, sizeof(State::Buffer), &state_buffer);
 	}
@@ -815,11 +856,12 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 					mesh_storage->update_mesh_instances();
 					update_skeletons = false;
 				}
-				_render_batch_items(to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, false, r_render_info);
+				_prepare_stencil_write(p_to_render_target, false, p_3d_info);
+				_render_batch_items(to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, false, p_3d_info->use_3d, r_render_info);
 				item_count = 0;
 
 				if (ci->canvas_group_owner->canvas_group->mode != RS::CANVAS_GROUP_MODE_TRANSPARENT) {
-					Rect2i group_rect = ci->canvas_group_owner->global_rect_cache;
+					Rect2i group_rect = ci->canvas_group_owner->global_rect_cache_3d;
 					texture_storage->render_target_copy_to_back_buffer(p_to_render_target, group_rect, false);
 					if (ci->canvas_group_owner->canvas_group->mode == RS::CANVAS_GROUP_MODE_CLIP_AND_DRAW) {
 						ci->canvas_group_owner->use_canvas_group = false;
@@ -847,7 +889,8 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 				update_skeletons = false;
 			}
 
-			_render_batch_items(to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, true, r_render_info);
+			_prepare_stencil_write(p_to_render_target, true, p_3d_info);
+			_render_batch_items(to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, true, p_3d_info->use_3d, r_render_info);
 			item_count = 0;
 
 			if (ci->canvas_group->blur_mipmaps) {
@@ -871,7 +914,8 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 				update_skeletons = false;
 			}
 
-			_render_batch_items(to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, false, r_render_info);
+			_prepare_stencil_write(p_to_render_target, false, p_3d_info);
+			_render_batch_items(to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, false, p_3d_info->use_3d, r_render_info);
 			item_count = 0;
 
 			texture_storage->render_target_copy_to_back_buffer(p_to_render_target, back_buffer_rect, backbuffer_gen_mipmaps);
@@ -901,7 +945,8 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 				update_skeletons = false;
 			}
 
-			_render_batch_items(to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, canvas_group_owner != nullptr, r_render_info);
+			_prepare_stencil_write(p_to_render_target, canvas_group_owner != nullptr, p_3d_info);
+			_render_batch_items(to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, canvas_group_owner != nullptr, p_3d_info->use_3d, r_render_info);
 			//then reset
 			item_count = 0;
 		}
@@ -1505,6 +1550,17 @@ void RendererCanvasRenderRD::CanvasShaderData::_create_pipeline(PipelineKey p_pi
 		attachment = RendererRD::MaterialStorage::ShaderData::blend_mode_to_blend_attachment(blend_mode_rd);
 	}
 
+	RD::PipelineDepthStencilState depth_stencil_state;
+	if (p_pipeline_key.stencil) {
+		dynamic_state_flags |= RD::DYNAMIC_STATE_STENCIL_REFERENCE;
+		depth_stencil_state.enable_stencil = true;
+		depth_stencil_state.front_op.compare = RenderingDeviceCommons::COMPARE_OP_EQUAL;
+		depth_stencil_state.front_op.write_mask = 0x00;
+		depth_stencil_state.front_op.reference = 0x00;
+		depth_stencil_state.front_op.compare_mask = 0xFF;
+		depth_stencil_state.back_op = depth_stencil_state.front_op;
+	}
+
 	blend_state.attachments.push_back(attachment);
 
 	RD::PipelineMultisampleState multisample_state;
@@ -1521,7 +1577,7 @@ void RendererCanvasRenderRD::CanvasShaderData::_create_pipeline(PipelineKey p_pi
 	RID shader_rid = get_shader(p_pipeline_key.variant, p_pipeline_key.ubershader);
 	ERR_FAIL_COND(shader_rid.is_null());
 
-	RID pipeline = RD::get_singleton()->render_pipeline_create(shader_rid, p_pipeline_key.framebuffer_format_id, p_pipeline_key.vertex_format_id, p_pipeline_key.render_primitive, RD::PipelineRasterizationState(), multisample_state, RD::PipelineDepthStencilState(), blend_state, dynamic_state_flags, 0, specialization_constants);
+	RID pipeline = RD::get_singleton()->render_pipeline_create(shader_rid, p_pipeline_key.framebuffer_format_id, p_pipeline_key.vertex_format_id, p_pipeline_key.render_primitive, RD::PipelineRasterizationState(), multisample_state, depth_stencil_state, blend_state, dynamic_state_flags, 0, specialization_constants);
 	ERR_FAIL_COND(pipeline.is_null());
 
 	pipeline_hash_map.add_compiled_pipeline(p_pipeline_key.hash(), pipeline);
@@ -1759,6 +1815,10 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 	}
 
 	{
+		stencil_write.initialize();
+	}
+
+	{
 		//shader compiler
 		ShaderCompiler::DefaultIdentifierActions actions;
 
@@ -1788,6 +1848,7 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 		actions.renames["SPECULAR_SHININESS_TEXTURE"] = "specular_texture";
 		actions.renames["SPECULAR_SHININESS"] = "specular_shininess";
 		actions.renames["SCREEN_UV"] = "screen_uv";
+		actions.renames["CANVAS_COORD"] = "canvas_coord";
 		actions.renames["SCREEN_PIXEL_SIZE"] = "canvas_data.screen_pixel_size";
 		actions.renames["FRAGCOORD"] = "gl_FragCoord";
 		actions.renames["POINT_COORD"] = "gl_PointCoord";
@@ -1812,6 +1873,7 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 
 		actions.usage_defines["COLOR"] = "#define COLOR_USED\n";
 		actions.usage_defines["SCREEN_UV"] = "#define SCREEN_UV_USED\n";
+		actions.usage_defines["CANVAS_COORD"] = "#define CANVAS_COORD_USED\n";
 		actions.usage_defines["SCREEN_PIXEL_SIZE"] = "@SCREEN_UV";
 		actions.usage_defines["NORMAL"] = "#define NORMAL_USED\n";
 		actions.usage_defines["NORMAL_MAP"] = "#define NORMAL_MAP_USED\n";
@@ -2124,7 +2186,7 @@ uint32_t RendererCanvasRenderRD::get_pipeline_compilations(RS::PipelineSource p_
 	return shader.pipeline_compilations[p_source];
 }
 
-void RendererCanvasRenderRD::_render_batch_items(RenderTarget p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer, RenderingMethod::RenderInfo *r_render_info) {
+void RendererCanvasRenderRD::_render_batch_items(RenderTarget p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer, bool p_use_stencil_clipping, RenderingMethod::RenderInfo *r_render_info) {
 	// Record batches
 	uint32_t instance_index = 0;
 	{
@@ -2135,8 +2197,11 @@ void RendererCanvasRenderRD::_render_batch_items(RenderTarget p_to_render_target
 		// First item always forms its own batch.
 		bool batch_broken = false;
 		Batch *current_batch = _new_batch(batch_broken);
+
 		// Override the start position and index as we want to start from where we finished off last time.
 		current_batch->start = state.last_instance_index;
+
+		int stencil_ref_idx = 0;
 
 		for (int i = 0; i < p_item_count; i++) {
 			Item *ci = items[i];
@@ -2144,6 +2209,8 @@ void RendererCanvasRenderRD::_render_batch_items(RenderTarget p_to_render_target
 			if (ci->final_clip_owner != current_batch->clip) {
 				current_batch = _new_batch(batch_broken);
 				current_batch->clip = ci->final_clip_owner;
+				stencil_ref_idx++;
+				current_batch->stencil_reference = stencil_ref_idx;
 				current_clip = ci->final_clip_owner;
 			}
 
@@ -2261,10 +2328,20 @@ void RendererCanvasRenderRD::_render_batch_items(RenderTarget p_to_render_target
 		if (current_clip != current_batch->clip) {
 			current_clip = current_batch->clip;
 			if (current_clip) {
-				RD::get_singleton()->draw_list_enable_scissor(draw_list, current_clip->final_clip_rect);
+				if (p_use_stencil_clipping) {
+					RD::get_singleton()->draw_list_disable_scissor(draw_list);
+					_write_to_stencil(draw_list, p_to_render_target.render_target, p_to_backbuffer, current_clip->final_clip_rect, current_batch->stencil_reference);
+					// Re-bind uniform set
+					RD::get_singleton()->draw_list_bind_uniform_set(draw_list, fb_uniform_set, BASE_UNIFORM_SET);
+				} else {
+					RD::get_singleton()->draw_list_enable_scissor(draw_list, current_clip->final_clip_rect);
+				}
 			} else {
 				RD::get_singleton()->draw_list_disable_scissor(draw_list);
 			}
+		}
+		if (current_clip) {
+			current_batch->use_stencil_clipping = p_use_stencil_clipping;
 		}
 
 		CanvasShaderData *shader_data = shader.default_version_data;
@@ -3011,6 +3088,10 @@ void RendererCanvasRenderRD::_render_batch(RD::DrawListID p_draw_list, CanvasSha
 	pipeline_key.render_primitive = p_batch->render_primitive;
 	pipeline_key.shader_specialization.use_lighting = p_batch->use_lighting;
 	pipeline_key.lcd_blend = p_batch->has_blend;
+	pipeline_key.stencil = p_batch->use_stencil_clipping;
+	if (pipeline_key.stencil) {
+		RD::get_singleton()->draw_list_set_stencil_ref(p_draw_list, p_batch->stencil_reference);
+	}
 
 	switch (p_batch->command_type) {
 		case Item::Command::TYPE_RECT:

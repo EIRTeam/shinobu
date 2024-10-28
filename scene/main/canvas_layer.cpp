@@ -181,6 +181,9 @@ void CanvasLayer::_notification(int p_what) {
 
 			RenderingServer::get_singleton()->viewport_attach_canvas(viewport, canvas);
 			RenderingServer::get_singleton()->viewport_set_canvas_transform(viewport, canvas, transform);
+			RenderingServer::get_singleton()->viewport_set_canvas_use_3d_transform(viewport, canvas, use_3d_transform);
+			RenderingServer::get_singleton()->viewport_set_canvas_3d_transform(viewport, canvas, transform_3d);
+
 			_update_follow_viewport();
 
 			if (vp) {
@@ -293,6 +296,29 @@ float CanvasLayer::get_follow_viewport_scale() const {
 	return follow_viewport_scale;
 }
 
+bool CanvasLayer::get_use_3d_transform() const {
+	return use_3d_transform;
+}
+
+void CanvasLayer::set_use_3d_transform(bool p_use_3d_transform) {
+	use_3d_transform = p_use_3d_transform;
+	if (viewport.is_valid()) {
+		RenderingServer::get_singleton()->viewport_set_canvas_use_3d_transform(viewport, canvas, p_use_3d_transform);
+	}
+	notify_property_list_changed();
+}
+
+Transform3D CanvasLayer::get_transform_3d() const {
+	return transform_3d;
+}
+
+void CanvasLayer::set_transform_3d(const Transform3D &p_transform_3d) {
+	transform_3d = p_transform_3d;
+	if (viewport.is_valid()) {
+		RenderingServer::get_singleton()->viewport_set_canvas_3d_transform(viewport, canvas, transform_3d);
+	}
+}
+
 void CanvasLayer::_update_follow_viewport(bool p_force_exit) {
 	if (!is_inside_tree()) {
 		return;
@@ -306,6 +332,9 @@ void CanvasLayer::_update_follow_viewport(bool p_force_exit) {
 
 void CanvasLayer::_validate_property(PropertyInfo &p_property) const {
 	if (!follow_viewport && p_property.name == "follow_viewport_scale") {
+		p_property.usage = PROPERTY_USAGE_NO_EDITOR;
+	}
+	if (!use_3d_transform && p_property.name == "transform_3d") {
 		p_property.usage = PROPERTY_USAGE_NO_EDITOR;
 	}
 }
@@ -341,6 +370,12 @@ void CanvasLayer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_custom_viewport", "viewport"), &CanvasLayer::set_custom_viewport);
 	ClassDB::bind_method(D_METHOD("get_custom_viewport"), &CanvasLayer::get_custom_viewport);
 
+	ClassDB::bind_method(D_METHOD("set_use_3d_transform", "use_3d_transform"), &CanvasLayer::set_use_3d_transform);
+	ClassDB::bind_method(D_METHOD("get_use_3d_transform"), &CanvasLayer::get_use_3d_transform);
+
+	ClassDB::bind_method(D_METHOD("set_transform_3d", "transform_3d"), &CanvasLayer::set_transform_3d);
+	ClassDB::bind_method(D_METHOD("get_transform_3d"), &CanvasLayer::get_transform_3d);
+
 	ClassDB::bind_method(D_METHOD("get_canvas"), &CanvasLayer::get_canvas);
 
 	ADD_GROUP("Layer", "");
@@ -351,6 +386,10 @@ void CanvasLayer::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "rotation", PROPERTY_HINT_RANGE, "-1080,1080,0.1,or_less,or_greater,radians_as_degrees"), "set_rotation", "get_rotation");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "scale", PROPERTY_HINT_LINK), "set_scale", "get_scale");
 	ADD_PROPERTY(PropertyInfo(Variant::TRANSFORM2D, "transform", PROPERTY_HINT_NONE, "suffix:px"), "set_transform", "get_transform");
+	ADD_GROUP("Transform 3D", "");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_3d_transform"), "set_use_3d_transform", "get_use_3d_transform");
+	ADD_PROPERTY(PropertyInfo(Variant::TRANSFORM3D, "transform_3d"), "set_transform_3d", "get_transform_3d");
+
 	ADD_GROUP("", "");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "custom_viewport", PROPERTY_HINT_RESOURCE_TYPE, "Viewport", PROPERTY_USAGE_NONE), "set_custom_viewport", "get_custom_viewport");
 	ADD_GROUP("Follow Viewport", "follow_viewport");

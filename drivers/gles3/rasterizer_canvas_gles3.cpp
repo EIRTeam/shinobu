@@ -104,7 +104,7 @@ void RasterizerCanvasGLES3::_update_transform_to_mat4(const Transform3D &p_trans
 	p_mat4[15] = 1;
 }
 
-void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info) {
+void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_light_list, const Transform2D &p_canvas_transform, Canvas3DInfo *p_canvas_3d_info, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info) {
 	GLES3::TextureStorage *texture_storage = GLES3::TextureStorage::get_singleton();
 	GLES3::MaterialStorage *material_storage = GLES3::MaterialStorage::get_singleton();
 	GLES3::MeshStorage *mesh_storage = GLES3::MeshStorage::get_singleton();
@@ -331,8 +331,16 @@ void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_
 		Transform3D screen_transform;
 		screen_transform.translate_local(-(ssize.width / 2.0f), -(ssize.height / 2.0f), 0.0f);
 		screen_transform.scale(Vector3(2.0f / ssize.width, y_scale / ssize.height, 1.0f));
+
 		_update_transform_to_mat4(screen_transform, state_buffer.screen_transform);
+		state_buffer.use_3d_transform = p_canvas_3d_info->use_3d;
 		_update_transform_2d_to_mat4(p_canvas_transform, state_buffer.canvas_transform);
+		_update_transform_2d_to_mat4(p_canvas_transform.affine_inverse(), state_buffer.canvas_transform_inverse);
+
+		if (p_canvas_3d_info->use_3d) {
+			_update_transform_to_mat4(p_canvas_3d_info->screen_transform_3d, state_buffer.screen_transform_3d);
+			_update_transform_to_mat4(p_canvas_3d_info->canvas_transform_3d, state_buffer.canvas_transform_3d);
+		}
 
 		Transform2D normal_transform = p_canvas_transform;
 		normal_transform.columns[0].normalize();
@@ -371,6 +379,9 @@ void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_
 		state_buffer.sdf_to_tex[3] = -sdf_tex_rect.position.y / sdf_tex_rect.size.height;
 
 		state_buffer.tex_to_sdf = 1.0 / ((canvas_scale.x + canvas_scale.y) * 0.5);
+
+		GLES3::MaterialStorage::store_camera(p_canvas_3d_info->projection, state_buffer.projection_matrix);
+		GLES3::MaterialStorage::store_transform(p_canvas_3d_info->view, state_buffer.view_matrix);
 
 		glBindBufferBase(GL_UNIFORM_BUFFER, BASE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_data_buffer_index].state_ubo);
 		glBufferData(GL_UNIFORM_BUFFER, sizeof(StateBuffer), &state_buffer, GL_STREAM_DRAW);
@@ -467,11 +478,11 @@ void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_
 					update_skeletons = false;
 				}
 				// Canvas group begins here, render until before this item
-				_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, false, r_render_info, material_screen_texture_mipmaps_cached);
+				_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_canvas_3d_info, p_light_list, r_sdf_used, false, r_render_info, material_screen_texture_mipmaps_cached);
 				item_count = 0;
 
 				if (ci->canvas_group_owner->canvas_group->mode != RS::CANVAS_GROUP_MODE_TRANSPARENT) {
-					Rect2i group_rect = ci->canvas_group_owner->global_rect_cache;
+					Rect2i group_rect = ci->canvas_group_owner->global_rect_cache_3d;
 					texture_storage->render_target_copy_to_back_buffer(p_to_render_target, group_rect, false);
 					if (ci->canvas_group_owner->canvas_group->mode == RS::CANVAS_GROUP_MODE_CLIP_AND_DRAW) {
 						ci->canvas_group_owner->use_canvas_group = false;
@@ -498,7 +509,7 @@ void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_
 				mesh_storage->update_mesh_instances();
 				update_skeletons = false;
 			}
-			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, true, r_render_info, material_screen_texture_mipmaps_cached);
+			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_canvas_3d_info, p_light_list, r_sdf_used, true, r_render_info, material_screen_texture_mipmaps_cached);
 			item_count = 0;
 
 			if (ci->canvas_group->blur_mipmaps) {
@@ -522,7 +533,7 @@ void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_
 			}
 			//render anything pending, including clearing if no items
 
-			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, false, r_render_info, material_screen_texture_mipmaps_cached);
+			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_canvas_3d_info, p_light_list, r_sdf_used, false, r_render_info, material_screen_texture_mipmaps_cached);
 			item_count = 0;
 
 			texture_storage->render_target_copy_to_back_buffer(p_to_render_target, back_buffer_rect, backbuffer_gen_mipmaps);
@@ -552,7 +563,7 @@ void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_
 				mesh_storage->update_mesh_instances();
 				update_skeletons = false;
 			}
-			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_light_list, r_sdf_used, canvas_group_owner != nullptr, r_render_info, material_screen_texture_mipmaps_cached);
+			_render_items(p_to_render_target, item_count, canvas_transform_inverse, p_canvas_3d_info, p_light_list, r_sdf_used, canvas_group_owner != nullptr, r_render_info, material_screen_texture_mipmaps_cached);
 			//then reset
 			item_count = 0;
 		}
@@ -572,8 +583,20 @@ void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_
 	state.current_instance_buffer_index = 0;
 }
 
-void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer, RenderingMethod::RenderInfo *r_render_info, bool p_backbuffer_has_mipmaps) {
+void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, RendererCanvasRender::Canvas3DInfo *p_3d_info, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer, RenderingMethod::RenderInfo *r_render_info, bool p_backbuffer_has_mipmaps) {
 	GLES3::MaterialStorage *material_storage = GLES3::MaterialStorage::get_singleton();
+
+	if (p_3d_info->use_3d) {
+		StencilWriteGLES3::StencilWriteTransforms transforms = {
+			.canvas = p_3d_info->canvas_transform_3d,
+			.screen = p_3d_info->screen_transform_3d,
+			.view = p_3d_info->view,
+			.projection = p_3d_info->projection
+		};
+		stencil_write.setup_stencil_write(transforms);
+	}
+
+	int current_stencil_ref = 1;
 
 	canvas_begin(p_to_render_target, p_to_backbuffer, p_backbuffer_has_mipmaps);
 
@@ -679,6 +702,8 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 #endif
 
 	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_STENCIL_TEST);
+	glClear(GL_DEPTH_BUFFER_BIT);
 	current_clip = nullptr;
 
 	GLES3::CanvasShaderData::BlendMode last_blend_mode = GLES3::CanvasShaderData::BLEND_MODE_MIX;
@@ -698,10 +723,20 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 		if (current_clip != state.canvas_instance_batches[i].clip) {
 			current_clip = state.canvas_instance_batches[i].clip;
 			if (current_clip) {
-				glEnable(GL_SCISSOR_TEST);
-				glScissor(current_clip->final_clip_rect.position.x, current_clip->final_clip_rect.position.y, current_clip->final_clip_rect.size.x, current_clip->final_clip_rect.size.y);
+				if (p_3d_info->use_3d) {
+					glEnable(GL_STENCIL_TEST);
+					stencil_write.do_stencil_write(current_clip->final_clip_rect, current_stencil_ref++);
+					glBindBufferBase(GL_UNIFORM_BUFFER, BASE_UNIFORM_LOCATION, state.canvas_instance_data_buffers[state.current_data_buffer_index].state_ubo);
+				} else {
+					glEnable(GL_SCISSOR_TEST);
+					glScissor(current_clip->final_clip_rect.position.x, current_clip->final_clip_rect.position.y, current_clip->final_clip_rect.size.x, current_clip->final_clip_rect.size.y);
+				}
 			} else {
-				glDisable(GL_SCISSOR_TEST);
+				if (p_3d_info->use_3d) {
+					glDisable(GL_STENCIL_TEST);
+				} else {
+					glDisable(GL_SCISSOR_TEST);
+				}
 			}
 		}
 
@@ -803,7 +838,7 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 			last_blend_color = blend_color;
 		}
 
-		_render_batch(p_lights, i, r_render_info);
+		_render_batch(p_lights, i, p_3d_info, r_render_info);
 	}
 
 	glDisable(GL_SCISSOR_TEST);
@@ -1297,7 +1332,7 @@ _FORCE_INLINE_ static uint32_t _indices_to_primitives(RS::PrimitiveType p_primit
 	return (p_indices - subtractor[p_primitive]) / divisor[p_primitive];
 }
 
-void RasterizerCanvasGLES3::_render_batch(Light *p_lights, uint32_t p_index, RenderingMethod::RenderInfo *r_render_info) {
+void RasterizerCanvasGLES3::_render_batch(Light *p_lights, uint32_t p_index, RendererCanvasRender::Canvas3DInfo *p_3d_info, RenderingMethod::RenderInfo *r_render_info) {
 	ERR_FAIL_NULL(state.canvas_instance_batches[state.current_batch_index].command);
 
 	// Used by Polygon and Mesh.
@@ -2403,6 +2438,7 @@ void RasterizerCanvasGLES3::reset_canvas() {
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_STENCIL_TEST);
 	glEnable(GL_BLEND);
 	glBlendEquation(GL_FUNC_ADD);
 	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
@@ -2888,6 +2924,8 @@ void fragment() {
 	texture_storage->canvas_texture_initialize(default_canvas_texture);
 
 	state.time = 0.0;
+
+	stencil_write.initialize();
 }
 
 RasterizerCanvasGLES3::~RasterizerCanvasGLES3() {

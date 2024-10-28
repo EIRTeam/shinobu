@@ -636,8 +636,26 @@ void RendererViewport::_draw_viewport(Viewport *p_viewport) {
 			scenario_draw_canvas_bg = false;
 		}
 
+		Size2i ssize = RSG::texture_storage->render_target_get_size(p_viewport->render_target);
+		Transform3D screen_transform;
+		screen_transform.translate_local(-(ssize.width / 2.0f), -(ssize.height / 2.0f), 0.0f);
+		screen_transform.scale(Vector3(2.0f / ssize.width, 2.0f / ssize.height, 1.0f));
+
 		for (const KeyValue<Viewport::CanvasKey, Viewport::CanvasData *> &E : canvas_map) {
 			RendererCanvasCull::Canvas *canvas = static_cast<RendererCanvasCull::Canvas *>(E.value->canvas);
+
+			if (E.value->canvas_3d_info.use_3d) {
+				Projection correction;
+				correction.set_depth_correction(true);
+				Projection projection = correction * p_viewport->prev_camera_data.main_projection;
+				E.value->canvas_3d_info.projection = projection;
+				E.value->canvas_3d_info.view = p_viewport->prev_camera_data.main_transform.affine_inverse();
+
+				Transform3D screen_transform_for_3d;
+				screen_transform_for_3d.scale(Vector3(ssize.aspect() / ssize.width, -1.0f / ssize.height, 1.0f));
+				E.value->canvas_3d_info.screen_transform_3d = screen_transform_for_3d;
+				E.value->canvas_3d_info.screen_transform = screen_transform;
+			}
 
 			Transform2D xform = _canvas_get_transform(p_viewport, canvas, E.value, clip_rect.size);
 
@@ -662,7 +680,7 @@ void RendererViewport::_draw_viewport(Viewport *p_viewport) {
 				ptr = ptr->filter_next_ptr;
 			}
 
-			RSG::canvas->render_canvas(p_viewport->render_target, canvas, xform, canvas_lights, canvas_directional_lights, clip_rect, p_viewport->texture_filter, p_viewport->texture_repeat, p_viewport->snap_2d_transforms_to_pixel, p_viewport->snap_2d_vertices_to_pixel, p_viewport->canvas_cull_mask, &p_viewport->render_info);
+			RSG::canvas->render_canvas(p_viewport->render_target, canvas, xform, &E.value->canvas_3d_info, canvas_lights, canvas_directional_lights, clip_rect, p_viewport->texture_filter, p_viewport->texture_repeat, p_viewport->snap_2d_transforms_to_pixel, p_viewport->snap_2d_vertices_to_pixel, p_viewport->canvas_cull_mask, &p_viewport->render_info);
 			if (RSG::canvas->was_sdf_used()) {
 				p_viewport->sdf_active = true;
 			}
@@ -1254,6 +1272,22 @@ void RendererViewport::viewport_remove_canvas(RID p_viewport, RID p_canvas) {
 
 	viewport->canvas_map.erase(p_canvas);
 	canvas->viewports.erase(p_viewport);
+}
+
+void RendererViewport::viewport_set_canvas_use_3d_transform(RID p_viewport, RID p_canvas, bool p_use_3d_transform) {
+	Viewport *viewport = viewport_owner.get_or_null(p_viewport);
+	ERR_FAIL_NULL(viewport);
+
+	ERR_FAIL_COND(!viewport->canvas_map.has(p_canvas));
+	viewport->canvas_map[p_canvas].canvas_3d_info.use_3d = p_use_3d_transform;
+}
+
+void RendererViewport::viewport_set_canvas_3d_transform(RID p_viewport, RID p_canvas, const Transform3D &p_3d_transform) {
+	Viewport *viewport = viewport_owner.get_or_null(p_viewport);
+	ERR_FAIL_NULL(viewport);
+
+	ERR_FAIL_COND(!viewport->canvas_map.has(p_canvas));
+	viewport->canvas_map[p_canvas].canvas_3d_info.canvas_transform_3d = p_3d_transform;
 }
 
 void RendererViewport::viewport_set_canvas_transform(RID p_viewport, RID p_canvas, const Transform2D &p_offset) {
