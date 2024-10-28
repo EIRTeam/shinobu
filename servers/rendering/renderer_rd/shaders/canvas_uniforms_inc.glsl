@@ -18,6 +18,10 @@
 #define INSTANCE_FLAGS_SHADOW_MASKED_SHIFT 13 // 16 bits.
 #define INSTANCE_FLAGS_SHADOW_MASKED (1 << INSTANCE_FLAGS_SHADOW_MASKED_SHIFT)
 
+struct ClippingPlaneSet {
+	vec4 clipping_planes[4];
+};
+
 struct InstanceData {
 	vec2 world_x;
 	vec2 world_y;
@@ -49,12 +53,14 @@ struct InstanceData {
 
 #define BATCH_FLAGS_DEFAULT_NORMAL_MAP_USED (1 << 9)
 #define BATCH_FLAGS_DEFAULT_SPECULAR_MAP_USED (1 << 10)
+#define BATCH_FLAGS_USE_CLIPPING_PLANES (1 << 11)
 
 layout(push_constant, std430) uniform Params {
 	uint base_instance_index; // base index to instance data
 	uint sc_packed_0;
 	uint specular_shininess;
 	uint batch_flags;
+	uint clipping_plane_index;
 }
 params;
 
@@ -96,7 +102,12 @@ bool sc_use_lighting() {
 
 layout(set = 0, binding = 1, std140) uniform CanvasData {
 	mat4 canvas_transform;
+	mat4 canvas_transform_3d;
+	mat4 canvas_transform_inverse;
 	mat4 screen_transform;
+	mat4 screen_transform_3d;
+	mat4 projection_matrix;
+	mat4 view_matrix;
 	mat4 canvas_normal_transform;
 	vec4 canvas_modulation;
 	vec2 screen_pixel_size;
@@ -110,7 +121,7 @@ layout(set = 0, binding = 1, std140) uniform CanvasData {
 	uint directional_light_count;
 	float tex_to_sdf;
 	uint flags;
-	uint pad2;
+	bool use_3d_transform;
 }
 canvas_data;
 
@@ -185,3 +196,8 @@ layout(set = 3, binding = 4, std430) restrict readonly buffer DrawData {
 	InstanceData data[];
 }
 instances;
+
+layout(set = 3, binding = 5, std430) restrict readonly buffer ClippingPlaneSets {
+	ClippingPlaneSet data[];
+}
+clipping_planes;

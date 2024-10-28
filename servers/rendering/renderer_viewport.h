@@ -32,6 +32,8 @@
 #define RENDERER_VIEWPORT_H
 
 #include "core/templates/rid_owner.h"
+#include "core/templates/self_list.h"
+#include "servers/rendering/renderer_canvas_render.h"
 #include "servers/rendering/renderer_scene_render.h"
 #include "servers/rendering/rendering_method.h"
 #include "servers/rendering_server.h"
@@ -147,6 +149,7 @@ public:
 		struct CanvasData {
 			CanvasBase *canvas = nullptr;
 			Transform2D transform;
+			RendererCanvasRender::Canvas3DInfo canvas_3d_info;
 			int layer;
 			int sublayer;
 		};
@@ -259,6 +262,8 @@ public:
 	void viewport_set_scenario(RID p_viewport, RID p_scenario);
 	void viewport_attach_canvas(RID p_viewport, RID p_canvas);
 	void viewport_remove_canvas(RID p_viewport, RID p_canvas);
+	void viewport_set_canvas_use_3d_transform(RID p_viewport, RID p_canvas, bool p_use_3d_transform);
+	void viewport_set_canvas_3d_transform(RID p_viewport, RID p_canvas, const Transform3D &p_3d_transform);
 	void viewport_set_canvas_transform(RID p_viewport, RID p_canvas, const Transform2D &p_offset);
 	void viewport_set_transparent_background(RID p_viewport, bool p_enabled);
 	void viewport_set_use_hdr_2d(RID p_viewport, bool p_use_hdr_2d);

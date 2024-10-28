@@ -277,7 +277,11 @@ void main() {
 	vertex_interp = vertex;
 	uv_interp = uv;
 
-	gl_Position = screen_transform * vec4(vertex, 0.0, 1.0);
+	if (bool(use_3d_transform)) {
+		gl_Position = projection_matrix * view_matrix * canvas_transform_3d * screen_transform_3d * vec4(vertex, 0.0, 1.0);
+	} else {
+		gl_Position = screen_transform * vec4(vertex, 0.0, 1.0);
+	}
 
 #ifdef USE_POINT_SIZE
 	gl_PointSize = point_size;
@@ -672,6 +676,12 @@ void main() {
 	vec2 screen_uv = gl_FragCoord.xy * screen_pixel_size;
 #else
 	vec2 screen_uv = vec2(0.0);
+#endif
+
+#if defined(CANVAS_COORD_USED)
+	vec2 canvas_coord = (canvas_transform_inverse * vec4(vertex_interp, 0.0, 1.0)).xy;
+#else
+	vec2 canvas_coord = vec2(0.0);
 #endif
 
 	vec2 color_texture_pixel_size = read_draw_data_color_texture_pixel_size.xy;

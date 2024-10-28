@@ -40,6 +40,8 @@ layout(location = 3) out vec2 pixel_size_interp;
 
 #endif
 
+layout(location = 12) out float clip_distances[4];
+
 #ifdef MATERIAL_UNIFORMS_USED
 /* clang-format off */
 layout(set = 1, binding = 0, std140) uniform MaterialUniforms {
@@ -57,6 +59,13 @@ vec3 srgb_to_linear(vec3 color) {
 	return mix(pow((color.rgb + vec3(0.055)) * (1.0 / (1.0 + 0.055)), vec3(2.4)), color.rgb * (1.0 / 12.92), lessThan(color.rgb, vec3(0.04045)));
 }
 #endif
+
+out gl_PerVertex {
+	vec4 gl_Position;
+#ifdef USE_POINT_SIZE
+	float gl_PointSize;
+#endif
+};
 
 void main() {
 	vec4 instance_custom = vec4(0.0);
@@ -225,8 +234,18 @@ void main() {
 
 	vertex_interp = vertex;
 	uv_interp = uv;
-
-	gl_Position = canvas_data.screen_transform * vec4(vertex, 0.0, 1.0);
+	if (canvas_data.use_3d_transform) {
+		if (bool(params.batch_flags & BATCH_FLAGS_USE_CLIPPING_PLANES)) {
+			vec3 vertex_world = (canvas_data.canvas_transform_3d * canvas_data.screen_transform_3d * vec4(vertex, 0.0, 1.0)).xyz;
+			for (int i = 0; i < 4; i++) {
+				vec4 plane_def = clipping_planes.data[params.clipping_plane_index].clipping_planes[i];
+				clip_distances[i] = dot(plane_def.xyz, vertex_world) - plane_def.w;
+			}
+		}
+		gl_Position = canvas_data.projection_matrix * canvas_data.view_matrix * canvas_data.canvas_transform_3d * canvas_data.screen_transform_3d * vec4(vertex, 0.0, 1.0);
+	} else {
+		gl_Position = canvas_data.screen_transform * vec4(vertex, 0.0, 1.0);
+	}
 
 #ifdef USE_POINT_SIZE
 	gl_PointSize = point_size;
@@ -256,6 +275,7 @@ layout(location = 3) in vec2 pixel_size_interp;
 #endif
 
 layout(location = 0) out vec4 frag_color;
+layout(location = 12) in float clip_distances[4];
 
 #ifdef MATERIAL_UNIFORMS_USED
 /* clang-format off */
@@ -461,6 +481,16 @@ float msdf_median(float r, float g, float b, float a) {
 }
 
 void main() {
+	if (canvas_data.use_3d_transform) {
+		if (bool(params.batch_flags & BATCH_FLAGS_USE_CLIPPING_PLANES)) {
+			for (int i = 0; i < 4; i++) {
+				if (clip_distances[i] < 0.0) {
+					discard;
+				}
+			}
+		}
+	}
+
 	vec4 color = color_interp;
 	vec2 uv = uv_interp;
 	vec2 vertex = vertex_interp;
@@ -577,6 +607,12 @@ void main() {
 	vec2 screen_uv = gl_FragCoord.xy * canvas_data.screen_pixel_size;
 #else
 	vec2 screen_uv = vec2(0.0);
+#endif
+
+#if defined(CANVAS_COORD_USED)
+	vec2 canvas_coord = (canvas_data.canvas_transform_inverse * vec4(vertex_interp, 0.0, 1.0)).xy;
+#else
+	vec2 canvas_coord = vec2(0.0);
 #endif
 
 	vec3 light_vertex = vec3(vertex, 0.0);

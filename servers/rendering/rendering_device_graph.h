@@ -77,6 +77,7 @@ public:
 			TYPE_SET_LINE_WIDTH,
 			TYPE_SET_PUSH_CONSTANT,
 			TYPE_SET_SCISSOR,
+			TYPE_SET_STENCIL_REF,
 			TYPE_SET_VIEWPORT,
 			TYPE_UNIFORM_SET_PREPARE_FOR_USE
 		};
@@ -596,6 +597,10 @@ private:
 		float width;
 	};
 
+	struct DrawListSetStencilRefInstruction : DrawListInstruction {
+		int stencil_ref;
+	};
+
 	struct DrawListSetScissorInstruction : DrawListInstruction {
 		Rect2i rect;
 	};
@@ -803,6 +808,7 @@ public:
 	void add_draw_list_set_line_width(float p_width);
 	void add_draw_list_set_push_constant(RDD::ShaderID p_shader, const void *p_data, uint32_t p_data_size);
 	void add_draw_list_set_scissor(Rect2i p_rect);
+	void add_draw_list_set_stencil_ref(int p_stencil_ref);
 	void add_draw_list_set_viewport(Rect2i p_rect);
 	void add_draw_list_uniform_set_prepare_for_use(RDD::ShaderID p_shader, RDD::UniformSetID p_uniform_set, uint32_t set_index);
 	void add_draw_list_usage(ResourceTracker *p_tracker, ResourceUsage p_usage);

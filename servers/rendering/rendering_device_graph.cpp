@@ -901,6 +901,11 @@ void RenderingDeviceGraph::_run_draw_list_command(RDD::CommandBufferID p_command
 				driver->command_render_set_scissor(p_command_buffer, set_scissor_instruction->rect);
 				instruction_data_cursor += sizeof(DrawListSetScissorInstruction);
 			} break;
+			case DrawListInstruction::TYPE_SET_STENCIL_REF: {
+				const DrawListSetStencilRefInstruction *set_stencil_instruction = reinterpret_cast<const DrawListSetStencilRefInstruction *>(instruction);
+				driver->command_render_set_stencil_ref(p_command_buffer, set_stencil_instruction->stencil_ref);
+				instruction_data_cursor += sizeof(DrawListSetStencilRefInstruction);
+			} break;
 			case DrawListInstruction::TYPE_SET_VIEWPORT: {
 				const DrawListSetViewportInstruction *set_viewport_instruction = reinterpret_cast<const DrawListSetViewportInstruction *>(instruction);
 				driver->command_render_set_viewport(p_command_buffer, set_viewport_instruction->rect);
@@ -1468,6 +1473,11 @@ void RenderingDeviceGraph::_print_draw_list(const uint8_t *p_instruction_data, u
 				print_line("\tSET SCISSOR", set_scissor_instruction->rect);
 				instruction_data_cursor += sizeof(DrawListSetScissorInstruction);
 			} break;
+			case DrawListInstruction::TYPE_SET_STENCIL_REF: {
+				const DrawListSetStencilRefInstruction *set_stencil_ref_instruction = reinterpret_cast<const DrawListSetStencilRefInstruction *>(instruction);
+				print_line("\tSET STENCIL REF", set_stencil_ref_instruction->stencil_ref);
+				instruction_data_cursor += sizeof(DrawListSetStencilRefInstruction);
+			} break;
 			case DrawListInstruction::TYPE_SET_VIEWPORT: {
 				const DrawListSetViewportInstruction *set_viewport_instruction = reinterpret_cast<const DrawListSetViewportInstruction *>(instruction);
 				print_line("\tSET VIEWPORT", set_viewport_instruction->rect);
@@ -1945,6 +1955,12 @@ void RenderingDeviceGraph::add_draw_list_set_scissor(Rect2i p_rect) {
 	DrawListSetScissorInstruction *instruction = reinterpret_cast<DrawListSetScissorInstruction *>(_allocate_draw_list_instruction(sizeof(DrawListSetScissorInstruction)));
 	instruction->type = DrawListInstruction::TYPE_SET_SCISSOR;
 	instruction->rect = p_rect;
+}
+
+void RenderingDeviceGraph::add_draw_list_set_stencil_ref(int p_stencil_ref) {
+	DrawListSetStencilRefInstruction *instruction = reinterpret_cast<DrawListSetStencilRefInstruction *>(_allocate_draw_list_instruction(sizeof(DrawListSetStencilRefInstruction)));
+	instruction->type = DrawListInstruction::TYPE_SET_STENCIL_REF;
+	instruction->stencil_ref = p_stencil_ref;
 }
 
 void RenderingDeviceGraph::add_draw_list_set_viewport(Rect2i p_rect) {
