@@ -16,6 +16,10 @@
 #define INSTANCE_FLAGS_SHADOW_MASKED_SHIFT 13 // 16 bits.
 #define INSTANCE_FLAGS_SHADOW_MASKED (1 << INSTANCE_FLAGS_SHADOW_MASKED_SHIFT)
 
+struct ClippingPlaneSet {
+	vec4 clipping_planes[4];
+};
+
 struct InstanceData {
 	vec2 world_x;
 	vec2 world_y;
@@ -47,12 +51,13 @@ struct InstanceData {
 
 #define BATCH_FLAGS_DEFAULT_NORMAL_MAP_USED (1 << 9)
 #define BATCH_FLAGS_DEFAULT_SPECULAR_MAP_USED (1 << 10)
+#define BATCH_FLAGS_USE_CLIPPING_PLANES (1 << 11)
 
 layout(push_constant, std430) uniform Params {
 	uint sc_packed_0;
 	uint specular_shininess;
 	uint batch_flags;
-	uint pad0;
+	uint clipping_plane_index;
 
 	vec2 msdf;
 	vec2 color_texture_pixel_size;
@@ -112,12 +117,18 @@ bool sc_use_lcd() {
 /* SET0: Globals */
 
 #define CANVAS_FLAGS_CONVERT_ATTRIBUTES_TO_LINEAR (1 << 0)
+#define CANVAS_FLAGS_USE_3D_TRANSFORM (1 << 1)
 
 // The values passed per draw primitives are cached within it
 
 layout(set = 0, binding = 1, std140) uniform CanvasData {
 	mat4 canvas_transform;
+	mat4 canvas_transform_3d;
+	mat4 canvas_transform_inverse;
 	mat4 screen_transform;
+	mat4 screen_transform_3d;
+	mat4 projection_matrix;
+	mat4 view_matrix;
 	mat4 canvas_normal_transform;
 	vec4 canvas_modulation;
 	vec2 screen_pixel_size;
@@ -183,6 +194,11 @@ layout(set = 0, binding = 9, std430) restrict readonly buffer GlobalShaderUnifor
 	vec4 data[];
 }
 global_shader_uniforms;
+
+layout(set = 0, binding = 10, std430) restrict readonly buffer ClippingPlaneUniformData {
+	ClippingPlaneSet data[];
+}
+clipping_planes;
 
 /* SET1: Is reserved for the material */
 
