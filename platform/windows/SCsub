@@ -49,7 +49,7 @@ def arrange_program_clean(prog):
         Clean(prog, extra_files_to_clean)
 
 
-res_file = "godot_res.rc"
+res_file = "ph_res.rc"
 res_target = "godot_res" + env["OBJSUFFIX"]
 res_obj = env.RES(res_target, res_file)
 env.Depends(res_obj, "#core/version_generated.gen.h")
