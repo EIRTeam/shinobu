@@ -49,6 +49,7 @@ class JoypadSDL {
 	struct Joypad {
 		bool attached = false;
 		JoypadType type;
+		StringName guid;
 
 		SDL_JoystickID sdl_instance_idx;
 
@@ -97,6 +98,8 @@ class JoypadSDL {
 
 	SafeFlag process_inputs_exit;
 	Thread process_inputs_thread;
+
+	static JoypadSDL *singleton;
 	static void process_inputs_thread_func(void *p_userdata);
 	void process_inputs_run();
 	void joypad_vibration_start(int p_pad_idx, float p_weak, float p_strong, float p_duration, uint64_t timestamp);
@@ -107,6 +110,13 @@ public:
 	~JoypadSDL();
 	Error initialize();
 	void process_events();
+	bool is_device_game_controller(int p_joy_device_idx) const {
+		return joypads[p_joy_device_idx].type == JoypadType::GAME_CONTROLLER;
+	}
+	StringName get_device_guid(int p_joy_device_idx) const;
+	static JoypadSDL *get_singleton() {
+		return singleton;
+	}
 };
 
 #endif // SDL_ENABLED

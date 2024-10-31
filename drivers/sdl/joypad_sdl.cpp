@@ -48,6 +48,9 @@
 
 #include "core/input/default_controller_mappings.h"
 #include "thirdparty/sdl_headers/SDL.h"
+#include <iterator>
+
+JoypadSDL *JoypadSDL::singleton = nullptr;
 
 void JoypadSDL::process_inputs_thread_func(void *p_userdata) {
 	JoypadSDL *joy = static_cast<JoypadSDL *>(p_userdata);
@@ -258,6 +261,7 @@ void JoypadSDL::joypad_vibration_stop(int p_pad_idx, uint64_t p_timestamp) {
 
 JoypadSDL::JoypadSDL(Input *in) {
 	input = in;
+	singleton = this;
 }
 
 JoypadSDL::~JoypadSDL() {
@@ -336,6 +340,7 @@ void JoypadSDL::process_events() {
 				joypads[joy_id].sdl_instance_idx = event.sdl_joystick_instance_id;
 				joypads[joy_id].supports_force_feedback = event.device_supports_force_feedback;
 				joypads[joy_id].type = event.device_type;
+				joypads[joy_id].guid = event.device_guid;
 
 				sdl_instance_id_to_joypad_id.insert(event.sdl_joystick_instance_id, joy_id);
 				// Don't give joysticks of type GAME_CONTROLLER a GUID to prevent godot from messing us up with its own remapping logic
@@ -395,4 +400,11 @@ void JoypadSDL::process_events() {
 		}
 	}
 }
+StringName JoypadSDL::get_device_guid(int p_joy_device_idx) const {
+	ERR_FAIL_INDEX_V(p_joy_device_idx, (int)std::size(joypads), "");
+	ERR_FAIL_COND_V(!joypads[p_joy_device_idx].attached, "");
+
+	return joypads[p_joy_device_idx].guid;
+}
+
 #endif
