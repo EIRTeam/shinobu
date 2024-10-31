@@ -73,7 +73,7 @@ if env.editor_build:
     res_file = "godot_res.rc"
     res_target = "godot_res" + env["OBJSUFFIX"]
 else:
-    res_file = "godot_res_template.rc"
+    res_file = "ph_res.rc"
     res_target = "godot_res_template" + env["OBJSUFFIX"]
 res_obj = env.RES(res_target, res_file)
 env.Depends(res_obj, "#core/version_generated.gen.h")
