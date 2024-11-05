@@ -421,16 +421,20 @@ void RendererCanvasCull::_cull_canvas_item(Item *p_canvas_item, const Transform2
 	int child_item_count = ci->child_items.size();
 	Item **child_items = ci->child_items.ptrw();
 	Rect2 global_rect_3d;
+	Rect2 clip_rect_3d;
 
 	unproject_screen_rect(p_3d_info, global_rect, global_rect_3d, true);
+	unproject_screen_rect(p_3d_info, p_clip_rect, clip_rect_3d, true);
 	ci->global_rect_cache_3d = global_rect_3d;
 	if (ci->clip) {
 		if (p_canvas_clip != nullptr) {
 			ci->final_clip_rect = p_canvas_clip->final_clip_rect.intersection(global_rect);
-			ci->final_clip_rect_3d = p_canvas_clip->final_clip_rect.intersection(global_rect_3d);
+			Rect2 final_clip_rect_3d;
+			unproject_screen_rect(p_3d_info, p_canvas_clip->final_clip_rect, final_clip_rect_3d, true);
+			ci->final_clip_rect_3d = final_clip_rect_3d.intersection(global_rect_3d);
 		} else {
 			ci->final_clip_rect = p_clip_rect.intersection(global_rect);
-			ci->final_clip_rect_3d = p_clip_rect.intersection(global_rect_3d);
+			ci->final_clip_rect_3d = clip_rect_3d.intersection(global_rect_3d);
 		}
 		if (p_3d_info->use_3d && (ci->final_clip_rect_3d.size.width < 0.5 || ci->final_clip_rect_3d.size.height < 0.5)) {
 			return;
