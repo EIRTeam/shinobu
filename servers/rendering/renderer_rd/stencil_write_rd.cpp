@@ -97,7 +97,10 @@ void StencilWriteRD::setup_stencil_write(RenderingDevice::FramebufferFormatID p_
 	ds_state.front_op.pass = RenderingDeviceCommons::STENCIL_OP_REPLACE;
 	ds_state.back_op = ds_state.front_op;
 
-	RID pipeline = RD::get_singleton()->render_pipeline_create(write_shader.write_shader, p_format_id, vertex_format, RD::RENDER_PRIMITIVE_TRIANGLES, RD::PipelineRasterizationState(), RD::PipelineMultisampleState(), ds_state, cb_state, RD::DYNAMIC_STATE_STENCIL_REFERENCE);
+	RD::PipelineMultisampleState multisample_state;
+	multisample_state.sample_count = RD::get_singleton()->framebuffer_format_get_texture_samples(p_format_id, 0);
+
+	RID pipeline = RD::get_singleton()->render_pipeline_create(write_shader.write_shader, p_format_id, vertex_format, RD::RENDER_PRIMITIVE_TRIANGLES, RD::PipelineRasterizationState(), multisample_state, ds_state, cb_state, RD::DYNAMIC_STATE_STENCIL_REFERENCE);
 	print_line(pipeline.is_valid(), p_format_id);
 	RD::get_singleton()->set_resource_name(pipeline, "Stencil Write Pipeline");
 	pipelines.insert(p_format_id, pipeline);
