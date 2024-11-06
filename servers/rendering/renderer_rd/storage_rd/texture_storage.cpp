@@ -3241,6 +3241,11 @@ void TextureStorage::_clear_render_target(RenderTarget *rt) {
 		rt->depth_stencil_multisample = RID();
 	}
 
+	if (rt->backbuffer_depth_stencil.is_valid()) {
+		RD::get_singleton()->free(rt->backbuffer_depth_stencil);
+		rt->backbuffer_depth_stencil = RID();
+	}
+
 	if (rt->backbuffer.is_valid()) {
 		RD::get_singleton()->free(rt->backbuffer);
 		rt->backbuffer = RID();
