@@ -230,6 +230,7 @@ opts.Add(
     )
 )
 
+opts.Add(BoolVariable("use_breakpad", "Enable Breakpad crash dump creation.", False))
 
 # Advanced options
 opts.Add(
@@ -602,6 +603,10 @@ if env["library_type"] != "executable":
         print_error(f"Library builds unsupported for {env['platform']}")
         Exit(255)
     env.Append(CPPDEFINES=["LIBGODOT_ENABLED"])
+
+# Breakpad support
+if env["use_breakpad"]:
+    env.Append(CPPDEFINES=["USE_BREAKPAD"])
 
 # Default num_jobs to local cpu count if not user specified.
 # SCons has a peculiarity where user-specified options won't be overridden
