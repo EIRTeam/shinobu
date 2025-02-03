@@ -219,6 +219,16 @@ Comment: Basis Universal
 Copyright: 2019-2025, Binomial LLC.
 License: Apache-2.0
 
+Files: thirdparty/betsy/*
+Comment: Betsy
+Copyright: 2020-2022, Matias N. Goldberg
+License: Expat
+
+Files: thirdparty/breakpad/*
+Comment: Breakpad is a set of client and server components which implement a crash-reporting system.
+Copyright: 2006, Google Inc.
+License: BSD-3-clause
+
 Files: thirdparty/brotli/*
 Comment: Brotli
 Copyright: 2009, 2010, 2013-2016 by the Brotli Authors.
