@@ -268,6 +268,9 @@ thirdparty/swappy-frame-pacing/armeabi-v7a/abi.json
 thirdparty/swappy-frame-pacing/x86/abi.json
 thirdparty/swappy-frame-pacing/x86_64/abi.json
 
+# Do not ignore breakpad source files
+!thirdparty/breakpad/src/client/linux/log
+
 # Visual Studio 2015/2017 cache/options directory
 .vs/
 
