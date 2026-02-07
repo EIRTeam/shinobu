@@ -523,6 +523,8 @@ def configure_msvc(env: "SConsEnvironment", vcvars_msvc_config):
 
     if env.debug_features:
         LIBS += ["psapi", "dbghelp"]
+    elif env["use_breakpad"]:
+        LIBS += ["dbghelp"]
 
     if env["vulkan"]:
         env.AppendUnique(CPPDEFINES=["VULKAN_ENABLED", "RD_ENABLED"])

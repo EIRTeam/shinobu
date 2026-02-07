@@ -108,16 +108,18 @@ void initialize_breakpad(bool register_handlers) {
 }
 
 void disable_breakpad() {
-	if (breakpad_handler == nullptr)
+	if (breakpad_handler == nullptr) {
 		return;
+	}
 
 	delete breakpad_handler;
 	breakpad_handler = nullptr;
 }
 
 void report_user_data_dir_usable() {
-	if (breakpad_handler == nullptr)
+	if (breakpad_handler == nullptr) {
 		return;
+	}
 
 	const String &crash_folder = get_settings_specific_crash_folder();
 
@@ -131,8 +133,9 @@ void report_user_data_dir_usable() {
 }
 
 void breakpad_handle_signal(int signal) {
-	if (breakpad_handler == nullptr)
+	if (breakpad_handler == nullptr) {
 		return;
+	}
 
 #ifndef WINDOWS_ENABLED
 	// TODO: Should this use HandleSignal(int sig, siginfo_t* info, void* uc) instead?
@@ -142,8 +145,9 @@ void breakpad_handle_signal(int signal) {
 }
 
 void breakpad_handle_exception_pointers(void *exinfo) {
-	if (breakpad_handler == nullptr)
+	if (breakpad_handler == nullptr) {
 		return;
+	}
 
 #ifdef WINDOWS_ENABLED
 	breakpad_handler->WriteMinidumpForException(static_cast<EXCEPTION_POINTERS *>(exinfo));
