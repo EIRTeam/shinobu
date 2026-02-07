@@ -412,6 +412,8 @@ def configure_msvc(env: "SConsEnvironment"):
 
     if env.debug_features:
         LIBS += ["psapi", "dbghelp"]
+    elif env["use_breakpad"]:
+        LIBS += ["dbghelp"]
 
     if env["accesskit"]:
         if env["accesskit_sdk_path"] != "":
