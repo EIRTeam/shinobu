@@ -932,12 +932,6 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 		ci = ci->next;
 	}
 
-	if (state.clipping_plane_count > 0) {
-		const int planes_to_write = (state.clipping_plane_count - state.written_clipping_plane_count) * sizeof(ClippingPlaneSet);
-		RD::get_singleton()->buffer_update(state.clipping_plane_buffer, state.written_clipping_plane_count * sizeof(ClippingPlaneSet), planes_to_write, &state.clipping_planes[state.written_clipping_plane_count]);
-		state.written_clipping_plane_count = state.clipping_plane_count;
-	}
-
 	if (time_used) {
 		RenderingServerDefault::redraw_request();
 	}
@@ -2322,6 +2316,12 @@ void RendererCanvasRenderRD::_render_batch_items(RenderTarget p_to_render_target
 	if (state.canvas_instance_batches.is_empty()) {
 		// Nothing to render, just return.
 		return;
+	}
+
+	if (state.clipping_plane_count != state.written_clipping_plane_count && state.clipping_plane_count > 0) {
+		const int planes_to_write = (state.clipping_plane_count - state.written_clipping_plane_count) * sizeof(ClippingPlaneSet);
+		RD::get_singleton()->buffer_update(state.clipping_plane_buffer, state.written_clipping_plane_count * sizeof(ClippingPlaneSet), planes_to_write, &state.clipping_planes[state.written_clipping_plane_count]);
+		state.written_clipping_plane_count = state.clipping_plane_count;
 	}
 
 	// Render batches
