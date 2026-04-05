@@ -5976,6 +5976,14 @@ void RenderingDevice::draw_list_set_line_width(DrawListID p_list, float p_width)
 	draw_graph.add_draw_list_set_line_width(p_width);
 }
 
+void RenderingDevice::draw_list_set_stencil_reference(DrawListID p_list, int p_stencil_ref) {
+	ERR_RENDER_THREAD_GUARD();
+
+	ERR_FAIL_COND(!draw_list.active);
+
+	draw_graph.add_draw_list_set_stencil_reference(p_stencil_ref);
+}
+
 void RenderingDevice::draw_list_set_push_constant(DrawListID p_list, const void *p_data, uint32_t p_data_size) {
 	ERR_RENDER_THREAD_GUARD();
 

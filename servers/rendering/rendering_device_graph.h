@@ -91,6 +91,7 @@ public:
 			TYPE_NEXT_SUBPASS,
 			TYPE_SET_BLEND_CONSTANTS,
 			TYPE_SET_LINE_WIDTH,
+			TYPE_SET_STENCIL_REFERENCE,
 			TYPE_SET_PUSH_CONSTANT,
 			TYPE_SET_SCISSOR,
 			TYPE_SET_VIEWPORT,
@@ -665,6 +666,10 @@ private:
 		float width;
 	};
 
+	struct DrawListSetStencilReferenceInstruction : DrawListInstruction {
+		int stencil_ref;
+	};
+
 	struct DrawListSetScissorInstruction : DrawListInstruction {
 		Rect2i rect;
 	};
@@ -933,6 +938,7 @@ public:
 	void add_draw_list_next_subpass(RDD::CommandBufferType p_command_buffer_type);
 	void add_draw_list_set_blend_constants(const Color &p_color);
 	void add_draw_list_set_line_width(float p_width);
+	void add_draw_list_set_stencil_reference(int p_ref);
 	void add_draw_list_set_push_constant(RDD::ShaderID p_shader, const void *p_data, uint32_t p_data_size);
 	void add_draw_list_set_scissor(Rect2i p_rect);
 	void add_draw_list_set_viewport(Rect2i p_rect);

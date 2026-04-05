@@ -662,6 +662,7 @@ public:
 	// Dynamic state.
 	virtual void command_render_set_blend_constants(CommandBufferID p_cmd_buffer, const Color &p_constants) override final;
 	virtual void command_render_set_line_width(CommandBufferID p_cmd_buffer, float p_width) override final;
+	virtual void command_render_set_stencil_reference(CommandBufferID p_cmd_buffer, int p_stencil_ref) override final;
 
 	// ----- PIPELINE -----
 

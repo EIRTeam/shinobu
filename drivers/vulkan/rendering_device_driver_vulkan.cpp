@@ -5800,6 +5800,11 @@ void RenderingDeviceDriverVulkan::command_render_set_line_width(CommandBufferID 
 	vkCmdSetLineWidth(command_buffer->vk_command_buffer, p_width);
 }
 
+void RenderingDeviceDriverVulkan::command_render_set_stencil_reference(CommandBufferID p_cmd_buffer, int p_stencil_ref) {
+	const CommandBufferInfo *command_buffer = (const CommandBufferInfo *)p_cmd_buffer.id;
+	vkCmdSetStencilReference(command_buffer->vk_command_buffer, VkStencilFaceFlagBits::VK_STENCIL_FACE_FRONT_AND_BACK, p_stencil_ref);
+}
+
 // ----- PIPELINE -----
 
 static const VkPrimitiveTopology RD_TO_VK_PRIMITIVE[RDD::RENDER_PRIMITIVE_MAX] = {

@@ -1001,6 +1001,11 @@ void RenderingDeviceGraph::_run_draw_list_command(RDD::CommandBufferID p_command
 				driver->command_render_set_line_width(p_command_buffer, set_line_width_instruction->width);
 				instruction_data_cursor += sizeof(DrawListSetLineWidthInstruction);
 			} break;
+			case DrawListInstruction::TYPE_SET_STENCIL_REFERENCE: {
+				const DrawListSetStencilReferenceInstruction *set_stencil_reference_instruction = reinterpret_cast<const DrawListSetStencilReferenceInstruction *>(instruction);
+				driver->command_render_set_stencil_reference(p_command_buffer, set_stencil_reference_instruction->stencil_ref);
+				instruction_data_cursor += sizeof(DrawListSetStencilReferenceInstruction);
+			} break;
 			case DrawListInstruction::TYPE_SET_PUSH_CONSTANT: {
 				const DrawListSetPushConstantInstruction *set_push_constant_instruction = reinterpret_cast<const DrawListSetPushConstantInstruction *>(instruction);
 				const VectorView push_constant_data_view(reinterpret_cast<const uint32_t *>(set_push_constant_instruction->data()), set_push_constant_instruction->size / sizeof(uint32_t));
@@ -2266,6 +2271,12 @@ void RenderingDeviceGraph::add_draw_list_set_line_width(float p_width) {
 	DrawListSetLineWidthInstruction *instruction = reinterpret_cast<DrawListSetLineWidthInstruction *>(_allocate_draw_list_instruction(sizeof(DrawListSetLineWidthInstruction)));
 	instruction->type = DrawListInstruction::TYPE_SET_LINE_WIDTH;
 	instruction->width = p_width;
+}
+
+void RenderingDeviceGraph::add_draw_list_set_stencil_reference(int p_ref) {
+	DrawListSetStencilReferenceInstruction *instruction = reinterpret_cast<DrawListSetStencilReferenceInstruction *>(_allocate_draw_list_instruction(sizeof(DrawListSetStencilReferenceInstruction)));
+	instruction->type = DrawListInstruction::TYPE_SET_STENCIL_REFERENCE;
+	instruction->stencil_ref = p_ref;
 }
 
 void RenderingDeviceGraph::add_draw_list_set_push_constant(RDD::ShaderID p_shader, const void *p_data, uint32_t p_data_size) {
