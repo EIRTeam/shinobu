@@ -291,7 +291,7 @@ def get_flags():
 
     return {
         "arch": arch,
-        "d3d12": True,
+        "d3d12": False,
         "supported": ["d3d12", "dcomp", "library", "mono", "xaudio2"],
     }
 
