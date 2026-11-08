@@ -1529,7 +1529,7 @@ extern int ZEXPORT unzOpenCurrentFile3(unzFile file, int* method,
     return UNZ_OK;
 }
 
-extern int ZEXPORT unzSeekCurrentFile(unzFile file, int pos) {
+extern int ZEXPORT unzSeekCurrentFile64(unzFile file, ZPOS64_T pos) {
     unz64_s* s;
     file_in_zip64_read_info_s* pfile_in_zip_read_info;
     if (file==NULL)
@@ -1544,8 +1544,10 @@ extern int ZEXPORT unzSeekCurrentFile(unzFile file, int pos) {
         return UNZ_INTERNALERROR;
     }
 
-    if ((pfile_in_zip_read_info->compression_method==0) || (pfile_in_zip_read_info->raw)) {
+    if (pos > s->cur_file_info.uncompressed_size)
+        return UNZ_PARAMERROR;
 
+    if ((pfile_in_zip_read_info->compression_method==0) || (pfile_in_zip_read_info->raw)) {
         pfile_in_zip_read_info->rest_read_compressed =
                 s->cur_file_info.compressed_size - pos;
         pfile_in_zip_read_info->rest_read_uncompressed =
@@ -1556,7 +1558,7 @@ extern int ZEXPORT unzSeekCurrentFile(unzFile file, int pos) {
                         pfile_in_zip_read_info->extra_size + pos;
 
         pfile_in_zip_read_info->stream.avail_in = (uInt)0;
-        pfile_in_zip_read_info->stream.total_out = pos;
+        pfile_in_zip_read_info->stream.total_out = (uLong)pos;
         pfile_in_zip_read_info->total_out_64 = pos;
 
         return ZSEEK64(pfile_in_zip_read_info->z_filefunc,
@@ -1566,7 +1568,7 @@ extern int ZEXPORT unzSeekCurrentFile(unzFile file, int pos) {
 
     } else { // gzip
 
-        if (pos < pfile_in_zip_read_info->stream.total_out) { // negative seek, rewind
+        if (pos < pfile_in_zip_read_info->total_out_64) { // negative seek, rewind
 
             pfile_in_zip_read_info->rest_read_compressed =
                     s->cur_file_info.compressed_size ;
@@ -1588,23 +1590,29 @@ extern int ZEXPORT unzSeekCurrentFile(unzFile file, int pos) {
         // not sure where to read, so read on the stack
         {
             char buf[512];
-            int to_read = pos - pfile_in_zip_read_info->stream.total_out;
+            ZPOS64_T to_read = pos - pfile_in_zip_read_info->total_out_64;
             while (to_read) {
 
-                int len = to_read > sizeof(buf)?sizeof(buf):to_read;
+                unsigned len = to_read > sizeof(buf)?sizeof(buf):(unsigned)to_read;
                 int read = unzReadCurrentFile(file, buf, len);
                 if (read < 0) {
                     return read;
                 }
                 to_read -= read;
-                if (read == UNZ_EOF) {
-                    return pos;
+                if (read == 0) {
+                    return UNZ_OK;
                 }
             }
         }
     }
 
-    return pos;
+    return UNZ_OK;
+}
+
+extern int ZEXPORT unzSeekCurrentFile(unzFile file, int pos) {
+    if (pos < 0)
+        return UNZ_PARAMERROR;
+    return unzSeekCurrentFile64(file, (ZPOS64_T)pos);
 }
 
 extern int ZEXPORT unzOpenCurrentFile(unzFile file) {

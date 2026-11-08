@@ -397,6 +397,7 @@ extern int ZEXPORT unzReadCurrentFile(unzFile file,
     (UNZ_ERRNO for IO error, or zLib error for uncompress error)
 */
 
+extern int ZEXPORT unzSeekCurrentFile64(unzFile file, ZPOS64_T pos);
 extern int ZEXPORT unzSeekCurrentFile(unzFile file, int pos);
 /*
   Seek to position in uncompressed data
