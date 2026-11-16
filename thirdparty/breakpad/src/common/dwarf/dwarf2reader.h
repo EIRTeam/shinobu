@@ -53,18 +53,16 @@
 #include "common/dwarf/bytereader.h"
 #include "common/dwarf/dwarf2enums.h"
 #include "common/dwarf/types.h"
-#include "common/using_std_string.h"
 #include "common/dwarf/elf_reader.h"
 
 namespace google_breakpad {
 struct LineStateMachine;
 class Dwarf2Handler;
 class LineInfoHandler;
-class DwpReader;
 
 // This maps from a string naming a section to a pair containing a
 // the data for the section, and the size of the section.
-typedef std::map<string, std::pair<const uint8_t*, uint64_t> > SectionMap;
+typedef std::map<std::string, std::pair<const uint8_t*, uint64_t> > SectionMap;
 
 // Abstract away the difference between elf and mach-o section names.
 // Elf-names use ".section_name, mach-o uses "__section_name".  Pass "name" in
@@ -213,7 +211,7 @@ class LineInfoHandler {
 
   // Called when we define a directory.  NAME is the directory name,
   // DIR_NUM is the directory number
-  virtual void DefineDir(const string& name, uint32_t dir_num) { }
+  virtual void DefineDir(const std::string& name, uint32_t dir_num) {}
 
   // Called when we define a filename. NAME is the filename, FILE_NUM
   // is the file number which is -1 if the file index is the next
@@ -222,9 +220,9 @@ class LineInfoHandler {
   // directory index for the directory name of this file, MOD_TIME is
   // the modification time of the file, and LENGTH is the length of
   // the file
-  virtual void DefineFile(const string& name, int32_t file_num,
+  virtual void DefineFile(const std::string& name, int32_t file_num,
                           uint32_t dir_num, uint64_t mod_time,
-                          uint64_t length) { }
+                          uint64_t length) {}
 
   // Called when the line info reader has a new line, address pair
   // ready for us. ADDRESS is the address of the code, LENGTH is the
@@ -394,10 +392,9 @@ class Dwarf2Handler {
   // The attribute is for the DIE at OFFSET from the beginning of the
   // .debug_info section. Its name is ATTR, its form is FORM, and its value is
   // DATA.
-  virtual void ProcessAttributeString(uint64_t offset,
-                                      enum DwarfAttribute attr,
+  virtual void ProcessAttributeString(uint64_t offset, enum DwarfAttribute attr,
                                       enum DwarfForm form,
-                                      const string& data) { }
+                                      const std::string& data) {}
 
   // Called when we have an attribute whose value is the 64-bit signature
   // of a type unit in the .debug_types section. OFFSET is the offset of
@@ -414,6 +411,94 @@ class Dwarf2Handler {
   // ending the parent.
   virtual void EndDIE(uint64_t offset) { }
 
+};
+
+// A Reader for a .dwp file.  Supports the fetching of DWARF debug
+// info for a given dwo_id.
+//
+// There are two versions of .dwp files.  In both versions, the
+// .dwp file is an ELF file containing only debug sections.
+// In Version 1, the file contains many copies of each debug
+// section, one for each .dwo file that is packaged in the .dwp
+// file, and the .debug_cu_index section maps from the dwo_id
+// to a set of section indexes.  In Version 2, the file contains
+// one of each debug section, and the .debug_cu_index section
+// maps from the dwo_id to a set of offsets and lengths that
+// identify each .dwo file's contribution to the larger sections.
+
+class DwpReader {
+ public:
+  DwpReader(const ByteReader& byte_reader, ElfReader* elf_reader);
+
+  // Read the CU index and initialize data members.
+  void Initialize();
+
+  // Read the debug sections for the given dwo_id.
+  void ReadDebugSectionsForCU(uint64_t dwo_id, SectionMap* sections);
+
+ private:
+  // Search a v1 hash table for "dwo_id".  Returns the slot index
+  // where the dwo_id was found, or -1 if it was not found.
+  int LookupCU(uint64_t dwo_id);
+
+  // Search a v2 hash table for "dwo_id".  Returns the row index
+  // in the offsets and sizes tables, or 0 if it was not found.
+  uint32_t LookupCUv2(uint64_t dwo_id);
+
+  // The ELF reader for the .dwp file.
+  ElfReader* elf_reader_;
+
+  // The ByteReader for the .dwp file.
+  const ByteReader& byte_reader_;
+
+  // Pointer to the .debug_cu_index section.
+  const char* cu_index_;
+
+  // Size of the .debug_cu_index section.
+  size_t cu_index_size_;
+
+  // Pointer to the .debug_str.dwo section.
+  const char* string_buffer_;
+
+  // Size of the .debug_str.dwo section.
+  size_t string_buffer_size_;
+
+  // Version of the .dwp file.  We support versions 1 and 2 currently.
+  int version_;
+
+  // Number of columns in the section tables (version 2).
+  unsigned int ncolumns_;
+
+  // Number of units in the section tables (version 2).
+  unsigned int nunits_;
+
+  // Number of slots in the hash table.
+  unsigned int nslots_;
+
+  // Pointer to the beginning of the hash table.
+  const char* phash_;
+
+  // Pointer to the beginning of the index table.
+  const char* pindex_;
+
+  // Pointer to the beginning of the section index pool (version 1).
+  const char* shndx_pool_;
+
+  // Pointer to the beginning of the section offset table (version 2).
+  const char* offset_table_;
+
+  // Pointer to the beginning of the section size table (version 2).
+  const char* size_table_;
+
+  // Contents of the sections of interest (version 2).
+  const char* abbrev_data_;
+  size_t abbrev_size_;
+  const char* info_data_;
+  size_t info_size_;
+  const char* str_offsets_data_;
+  size_t str_offsets_size_;
+  const char* rnglist_data_;
+  size_t rnglist_size_;
 };
 
 // The base of DWARF2/3 debug info is a DIE (Debugging Information
@@ -457,7 +542,7 @@ class CompilationUnit {
   // Initialize a compilation unit.  This requires a map of sections,
   // the offset of this compilation unit in the .debug_info section, a
   // ByteReader, and a Dwarf2Handler class to call callbacks in.
-  CompilationUnit(const string& path, const SectionMap& sections,
+  CompilationUnit(const std::string& path, const SectionMap& sections,
                   uint64_t offset, ByteReader* reader, Dwarf2Handler* handler);
   virtual ~CompilationUnit() {
     if (abbrevs_) delete abbrevs_;
@@ -469,7 +554,8 @@ class CompilationUnit {
   // compilation unit.  We also inherit the Dwarf2Handler from
   // the executable file, and call it as if we were still
   // processing the original compilation unit.
-  void SetSplitDwarf(uint64_t addr_base, uint64_t dwo_id);
+  void SetSplitDwarf(uint64_t addr_base, uint64_t dwo_id,
+                     std::string skeleton_path);
 
   // Begin reading a Dwarf2 compilation unit, and calling the
   // callbacks in the Dwarf2Handler
@@ -509,6 +595,8 @@ class CompilationUnit {
   uint64_t GetSourceLineOffset() { return source_line_offset_; }
 
   bool ShouldProcessSplitDwarf() { return should_process_split_dwarf_; }
+
+  const std::string& path() const { return path_; }
 
  private:
 
@@ -679,7 +767,7 @@ class CompilationUnit {
                                 SectionMap* sections);
 
   // Path of the file containing the debug information.
-  const string path_;
+  const std::string path_;
 
   // Offset from section start is the offset of this compilation unit
   // from the beginning of the .debug_info/.debug_info.dwo section.
@@ -773,6 +861,9 @@ class CompilationUnit {
   // DWP reader.
   std::unique_ptr<DwpReader> dwp_reader_;
 
+  // Path of the file containing the skeleton compilation unit.
+  std::string skeleton_path_;
+
   bool should_process_split_dwarf_;
 
   // The value of the DW_AT_low_pc attribute, if any.
@@ -781,94 +872,6 @@ class CompilationUnit {
   // The value of DW_AT_stmt_list attribute if any.
   bool has_source_line_info_;
   uint64_t source_line_offset_;
-};
-
-// A Reader for a .dwp file.  Supports the fetching of DWARF debug
-// info for a given dwo_id.
-//
-// There are two versions of .dwp files.  In both versions, the
-// .dwp file is an ELF file containing only debug sections.
-// In Version 1, the file contains many copies of each debug
-// section, one for each .dwo file that is packaged in the .dwp
-// file, and the .debug_cu_index section maps from the dwo_id
-// to a set of section indexes.  In Version 2, the file contains
-// one of each debug section, and the .debug_cu_index section
-// maps from the dwo_id to a set of offsets and lengths that
-// identify each .dwo file's contribution to the larger sections.
-
-class DwpReader {
- public:
-  DwpReader(const ByteReader& byte_reader, ElfReader* elf_reader);
-
-  // Read the CU index and initialize data members.
-  void Initialize();
-
-  // Read the debug sections for the given dwo_id.
-  void ReadDebugSectionsForCU(uint64_t dwo_id, SectionMap* sections);
-
- private:
-  // Search a v1 hash table for "dwo_id".  Returns the slot index
-  // where the dwo_id was found, or -1 if it was not found.
-  int LookupCU(uint64_t dwo_id);
-
-  // Search a v2 hash table for "dwo_id".  Returns the row index
-  // in the offsets and sizes tables, or 0 if it was not found.
-  uint32_t LookupCUv2(uint64_t dwo_id);
-
-  // The ELF reader for the .dwp file.
-  ElfReader* elf_reader_;
-
-  // The ByteReader for the .dwp file.
-  const ByteReader& byte_reader_;
-
-  // Pointer to the .debug_cu_index section.
-  const char* cu_index_;
-
-  // Size of the .debug_cu_index section.
-  size_t cu_index_size_;
-
-  // Pointer to the .debug_str.dwo section.
-  const char* string_buffer_;
-
-  // Size of the .debug_str.dwo section.
-  size_t string_buffer_size_;
-
-  // Version of the .dwp file.  We support versions 1 and 2 currently.
-  int version_;
-
-  // Number of columns in the section tables (version 2).
-  unsigned int ncolumns_;
-
-  // Number of units in the section tables (version 2).
-  unsigned int nunits_;
-
-  // Number of slots in the hash table.
-  unsigned int nslots_;
-
-  // Pointer to the beginning of the hash table.
-  const char* phash_;
-
-  // Pointer to the beginning of the index table.
-  const char* pindex_;
-
-  // Pointer to the beginning of the section index pool (version 1).
-  const char* shndx_pool_;
-
-  // Pointer to the beginning of the section offset table (version 2).
-  const char* offset_table_;
-
-  // Pointer to the beginning of the section size table (version 2).
-  const char* size_table_;
-
-  // Contents of the sections of interest (version 2).
-  const char* abbrev_data_;
-  size_t abbrev_size_;
-  const char* info_data_;
-  size_t info_size_;
-  const char* str_offsets_data_;
-  size_t str_offsets_size_;
-  const char* rnglist_data_;
-  size_t rnglist_size_;
 };
 
 // This class is a reader for DWARF's Call Frame Information.  CFI
@@ -1160,7 +1163,7 @@ class CallFrameInfo {
   // A common information entry (CIE).
   struct CIE: public Entry {
     uint8_t version;                      // CFI data version number
-    string augmentation;                // vendor format extension markers
+    std::string augmentation;             // vendor format extension markers
     uint64_t code_alignment_factor;       // scale for code address adjustments
     int data_alignment_factor;          // scale for stack pointer adjustments
     unsigned return_address_register;   // which register holds the return addr
@@ -1299,7 +1302,7 @@ class CallFrameInfo::Handler {
   // process a given FDE, the parser reiterates the appropriate CIE's
   // contents at the beginning of the FDE's rules.
   virtual bool Entry(size_t offset, uint64_t address, uint64_t length,
-                     uint8_t version, const string& augmentation,
+                     uint8_t version, const std::string& augmentation,
                      unsigned return_address) = 0;
 
   // When the Entry function returns true, the parser calls these
@@ -1348,13 +1351,13 @@ class CallFrameInfo::Handler {
   // At ADDRESS, the DWARF expression EXPRESSION yields the address at
   // which REG was saved.
   virtual bool ExpressionRule(uint64_t address, int reg,
-                              const string& expression) = 0;
+                              const std::string& expression) = 0;
 
   // At ADDRESS, the DWARF expression EXPRESSION yields the caller's
   // value for REG. (This rule doesn't provide an address at which the
   // register's value is saved.)
   virtual bool ValExpressionRule(uint64_t address, int reg,
-                                 const string& expression) = 0;
+                                 const std::string& expression) = 0;
 
   // Indicate that the rules for the address range reported by the
   // last call to Entry are complete.  End should return true if
@@ -1363,7 +1366,7 @@ class CallFrameInfo::Handler {
   virtual bool End() = 0;
 
   // The target architecture for the data.
-  virtual string Architecture() = 0;
+  virtual std::string Architecture() = 0;
 
   // Handler functions for Linux C++ exception handling data. These are
   // only called if the data includes 'z' augmentation strings.
@@ -1434,9 +1437,9 @@ class CallFrameInfo::Reporter {
   // in a Mach-O section named __debug_frame. If we support
   // Linux-style exception handling data, we could be reading an
   // .eh_frame section.
-  Reporter(const string& filename,
-           const string& section = ".debug_frame")
-      : filename_(filename), section_(section) { }
+  Reporter(const std::string& filename,
+           const std::string& section = ".debug_frame")
+      : filename_(filename), section_(section) {}
   virtual ~Reporter() { }
 
   // The CFI entry at OFFSET ends too early to be well-formed. KIND
@@ -1475,7 +1478,7 @@ class CallFrameInfo::Reporter {
   // which we don't recognize. We cannot parse DWARF CFI if it uses
   // augmentations we don't recognize.
   virtual void UnrecognizedAugmentation(uint64_t offset,
-                                        const string& augmentation);
+                                        const std::string& augmentation);
 
   // The pointer encoding ENCODING, specified by the CIE at OFFSET, is not
   // a valid encoding.
@@ -1516,10 +1519,10 @@ class CallFrameInfo::Reporter {
 
  protected:
   // The name of the file whose CFI we're reading.
-  string filename_;
+  std::string filename_;
 
   // The name of the CFI section in that file.
-  string section_;
+  std::string section_;
 };
 
 }  // namespace google_breakpad

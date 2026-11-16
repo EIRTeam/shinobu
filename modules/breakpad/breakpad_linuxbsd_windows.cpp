@@ -46,13 +46,21 @@ static bool register_breakpad_handlers;
 #ifdef WINDOWS_ENABLED
 static bool dump_callback(const wchar_t *dump_path, const wchar_t *minidump_id, void *context,
 		EXCEPTION_POINTERS *exinfo, MDRawAssertionInfo *assertion, bool succeeded) {
-	wprintf(L"Crash dump created at: %s/%s.dmp\n", dump_path, minidump_id);
+	if (succeeded) {
+		wprintf(L"Crash dump created at: %s\\%s.dmp\n", dump_path, minidump_id);
 
-	// This, kind of duplicate print, is here as in the default Godot console window the dump created message is otherwise not visible
-	fwprintf(stderr, L"Crash dump created at: %s/%s.dmp\n", dump_path, minidump_id);
+		// This, kind of duplicate print, is here as in the default Godot console window the dump created message is otherwise not visible.
+		fwprintf(stderr, L"Crash dump created at: %s\\%s.dmp\n", dump_path, minidump_id);
+	} else {
+		fwprintf(stderr, L"Failed to create crash dump in: %s\n", dump_path);
+	}
 #else
 static bool dump_callback(const google_breakpad::MinidumpDescriptor &descriptor, void *context, bool succeeded) {
-	printf("Crash dump created at: %s\n", descriptor.path());
+	if (succeeded) {
+		printf("Crash dump created at: %s\n", descriptor.path());
+	} else {
+		fprintf(stderr, "Failed to create crash dump at: %s\n", descriptor.path());
+	}
 #endif
 	return succeeded;
 }
@@ -76,7 +84,10 @@ static String get_settings_specific_crash_folder() {
 	String crash_folder = OS::get_singleton()->get_user_data_dir() + "/crashes";
 	Ref<DirAccess> dir = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 	if (!dir->dir_exists(crash_folder)) {
-		dir->make_dir_recursive(crash_folder);
+		Error err = dir->make_dir_recursive(crash_folder);
+		if (err != OK) {
+			ERR_PRINT(vformat("Failed to create crash dump directory: %s", crash_folder));
+		}
 	}
 
 	return crash_folder;

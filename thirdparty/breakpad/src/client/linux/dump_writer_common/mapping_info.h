@@ -55,6 +55,15 @@ struct MappingInfo {
     uintptr_t start_addr;
     uintptr_t end_addr;
   } system_mapping_info;
+  // Represents an ELF image whose mappings are not contiguous. Breakpad emits
+  // one minidump module for the image, but |start_addr| and |size| keep the
+  // actual mapping bounds for memory lookups. The mapping with the ELF header
+  // sets |end_addr| to the module end. Later mappings set |follower| and do
+  // not emit modules. Normal mappings leave both fields zero/false.
+  struct {
+    uintptr_t end_addr;
+    bool follower;
+  } split_image;
   size_t offset;  // offset into the backed file.
   bool exec;  // true if the mapping has the execute bit set.
   char name[NAME_MAX];

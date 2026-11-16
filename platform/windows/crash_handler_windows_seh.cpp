@@ -292,7 +292,10 @@ void CrashHandler::initialize() {
 #ifdef CRASH_HANDLER_EXCEPTION
 
 #ifdef USE_BREAKPAD
-	initialize_breakpad(false);
+	// Keep Breakpad's process-wide exception filter installed. The SEH wrapper
+	// around main handles exceptions on the main thread, but does not catch
+	// crashes on other threads.
+	initialize_breakpad(true);
 #endif
 
 #elif defined(USE_BREAKPAD)

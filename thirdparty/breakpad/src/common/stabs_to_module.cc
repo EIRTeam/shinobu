@@ -44,21 +44,21 @@
 #include <utility>
 
 #include "common/stabs_to_module.h"
-#include "common/using_std_string.h"
 
 namespace google_breakpad {
 
 // Demangle using abi call.
 // Older GCC may not support it.
-static string Demangle(const string& mangled) {
+static std::string Demangle(const std::string& mangled) {
   int status = 0;
-  char *demangled = abi::__cxa_demangle(mangled.c_str(), NULL, NULL, &status);
-  if (status == 0 && demangled != NULL) {
-    string str(demangled);
+  char *demangled = abi::__cxa_demangle(
+      mangled.c_str(), nullptr, nullptr, &status);
+  if (status == 0 && demangled != nullptr) {
+    std::string str(demangled);
     free(demangled);
     return str;
   }
-  return string(mangled);
+  return std::string(mangled);
 }
 
 StabsToModule::~StabsToModule() {
@@ -85,15 +85,14 @@ bool StabsToModule::EndCompilationUnit(uint64_t address) {
   assert(in_compilation_unit_);
   in_compilation_unit_ = false;
   comp_unit_base_address_ = 0;
-  current_source_file_ = NULL;
-  current_source_file_name_ = NULL;
+  current_source_file_ = nullptr;
+  current_source_file_name_ = nullptr;
   if (address)
     boundaries_.push_back(static_cast<Module::Address>(address));
   return true;
 }
 
-bool StabsToModule::StartFunction(const string& name,
-                                  uint64_t address) {
+bool StabsToModule::StartFunction(const std::string& name, uint64_t address) {
   assert(!current_function_);
   Module::Function* f =
       new Module::Function(module_->AddStringToPool(Demangle(name)), address);
@@ -115,7 +114,7 @@ bool StabsToModule::EndFunction(uint64_t address) {
     functions_.push_back(current_function_);
   else
     delete current_function_;
-  current_function_ = NULL;
+  current_function_ = nullptr;
   if (address)
     boundaries_.push_back(static_cast<Module::Address>(address));
   return true;
@@ -137,7 +136,7 @@ bool StabsToModule::Line(uint64_t address, const char *name, int number) {
   return true;
 }
 
-bool StabsToModule::Extern(const string& name, uint64_t address) {
+bool StabsToModule::Extern(const std::string& name, uint64_t address) {
   auto ext = std::make_unique<Module::Extern>(address);
   // Older libstdc++ demangle implementations can crash on unexpected
   // input, so be careful about what gets passed in.

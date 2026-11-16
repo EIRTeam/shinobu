@@ -105,7 +105,7 @@ void MaybeRecordSymbol(DWORD rva,
   // Take the 'least' symbol by lexicographical order of the decorated name. We
   // use the decorated rather than undecorated name because computing the latter
   // is expensive.
-  BSTR current_name, new_name;
+  CComBSTR current_name, new_name;
   loc->second.symbol->get_name(&current_name);
   symbol->get_name(&new_name);
   if (wcscmp(new_name, current_name) < 0) {
@@ -210,6 +210,40 @@ void StripLlvmSuffixAndUndecorate(BSTR* name) {
       return;
     }
   }
+}
+
+// Removes the `static` keyword and return type from `symbol` if present.
+void StripStaticAndReturnType(IDiaSymbol* function, BSTR* symbol) {
+  // Return if `symbol` is empty or doesn't start with the static keyword.
+  static constexpr wchar_t kStaticPrefix[] = L"static ";
+  if (wcsncmp(*symbol, kStaticPrefix, wcslen(kStaticPrefix)) != 0) {
+    return;
+  }
+
+  // `get_name()` returns the undecorated function name for private symbols and
+  // the decorated name for public symbols. `symbol` doesn't start with `?`, so
+  // it's private and `get_name()` can be used to get a readable function name.
+  CComBSTR function_name;
+  if (FAILED(function->get_name(&function_name)) ||
+      wcscmp(function_name, L"") == 0) {
+    return;
+  }
+
+  // Get the arguments from `symbol` by finding `function_name` followed by `(`.
+  CComBSTR function_name_with_parenthesis(function_name);
+  function_name_with_parenthesis.Append(L'(');
+  const wchar_t* args = wcsstr(*symbol, function_name_with_parenthesis);
+  if (!args) {
+    return;
+  }
+  args += ::SysStringLen(function_name_with_parenthesis) - 1;
+
+  // Replace `symbol` with `function_name` + `args`.
+  if (FAILED(function_name.Append(args))) {
+    return;
+  }
+  ::SysFreeString(*symbol);
+  *symbol = function_name.Detach();
 }
 
 // Prints the error message related to the error code as seen in
@@ -401,7 +435,7 @@ void PDBSourceLineWriter::Lines::AddLine(const Line& line) {
 }
 
 PDBSourceLineWriter::PDBSourceLineWriter(bool handle_inline)
-    : output_(NULL), handle_inline_(handle_inline) {}
+    : output_(nullptr), handle_inline_(handle_inline) {}
 
 PDBSourceLineWriter::~PDBSourceLineWriter() {
   Close();
@@ -421,7 +455,7 @@ bool PDBSourceLineWriter::Open(const wstring& file, FileFormat format) {
   Close();
   code_file_.clear();
 
-  if (FAILED(CoInitialize(NULL))) {
+  if (FAILED(CoInitialize(nullptr))) {
     fprintf(stderr, "CoInitialize failed\n");
     return false;
   }
@@ -448,7 +482,7 @@ bool PDBSourceLineWriter::Open(const wstring& file, FileFormat format) {
       }
       break;
     case EXE_FILE:
-      for_exe_result = data_source->loadDataForExe(file_name, NULL, NULL);
+      for_exe_result = data_source->loadDataForExe(file_name, nullptr, nullptr);
       if (FAILED(for_exe_result)) {
         PrintOpenError(for_exe_result, "loadDataForExe", file_name);
         return false;
@@ -458,7 +492,8 @@ bool PDBSourceLineWriter::Open(const wstring& file, FileFormat format) {
     case ANY_FILE:
       from_pdb_result = data_source->loadDataFromPdb(file_name);
       if (FAILED(from_pdb_result)) {
-        for_exe_result = data_source->loadDataForExe(file_name, NULL, NULL);
+        for_exe_result = data_source->loadDataForExe(
+            file_name, nullptr, nullptr);
         if (FAILED(for_exe_result)) {
           PrintOpenError(from_pdb_result, "loadDataFromPdb", file_name);
           PrintOpenError(for_exe_result, "loadDataForExe", file_name);
@@ -477,6 +512,28 @@ bool PDBSourceLineWriter::Open(const wstring& file, FileFormat format) {
   }
 
   return true;
+}
+
+int PDBSourceLineWriter::GetCallsiteInlineOriginId(
+    CComPtr<IDiaSymbol>& callsite) {
+  wstring name;
+  {
+    CComBSTR name_bstr;
+    callsite->get_name(&name_bstr);
+    if (name.assign(name_bstr, name_bstr.Length()).empty()) {
+      name = L"<name omitted>";
+    }
+  }
+
+  const int next_id = inline_origins_.size();
+  auto iter_inserted = inline_origins_.emplace(std::move(name), next_id);
+  if (!iter_inserted.second) {
+    // `name` is already present. Return its previously-assigned unique id.
+    return iter_inserted.first->second;
+  }
+  // `name` was just inserted. Assign it the next id and return this value.
+  iter_inserted.first->second = next_id;
+  return next_id;
 }
 
 bool PDBSourceLineWriter::GetLine(IDiaLineNumber* dia_line, Line* line) const {
@@ -609,7 +666,7 @@ bool PDBSourceLineWriter::PrintSourceFiles() {
   }
 
   CComPtr<IDiaEnumSymbols> compilands;
-  if (FAILED(global->findChildren(SymTagCompiland, NULL,
+  if (FAILED(global->findChildren(SymTagCompiland, nullptr,
                                   nsNone, &compilands))) {
     fprintf(stderr, "findChildren failed\n");
     return false;
@@ -623,7 +680,7 @@ bool PDBSourceLineWriter::PrintSourceFiles() {
   ULONG count;
   while (SUCCEEDED(compilands->Next(1, &compiland, &count)) && count == 1) {
     CComPtr<IDiaEnumSourceFiles> source_files;
-    if (FAILED(session_->findFile(compiland, NULL, nsNone, &source_files))) {
+    if (FAILED(session_->findFile(compiland, nullptr, nsNone, &source_files))) {
       return false;
     }
     CComPtr<IDiaSourceFile> file;
@@ -666,14 +723,14 @@ bool PDBSourceLineWriter::PrintFunctions() {
     return false;
   }
 
-  CComPtr<IDiaEnumSymbols> symbols = NULL;
+  CComPtr<IDiaEnumSymbols> symbols = nullptr;
 
   // Find all function symbols first.
   SymbolMap rva_symbol;
-  hr = global->findChildren(SymTagFunction, NULL, nsNone, &symbols);
+  hr = global->findChildren(SymTagFunction, nullptr, nsNone, &symbols);
 
   if (SUCCEEDED(hr)) {
-    CComPtr<IDiaSymbol> symbol = NULL;
+    CComPtr<IDiaSymbol> symbol = nullptr;
 
     while (SUCCEEDED(symbols->Next(1, &symbol, &count)) && count == 1) {
       if (SUCCEEDED(symbol->get_relativeVirtualAddress(&rva))) {
@@ -692,10 +749,10 @@ bool PDBSourceLineWriter::PrintFunctions() {
 
   // Find all public symbols and record public symbols that are not also private
   // symbols.
-  hr = global->findChildren(SymTagPublicSymbol, NULL, nsNone, &symbols);
+  hr = global->findChildren(SymTagPublicSymbol, nullptr, nsNone, &symbols);
 
   if (SUCCEEDED(hr)) {
-    CComPtr<IDiaSymbol> symbol = NULL;
+    CComPtr<IDiaSymbol> symbol = nullptr;
 
     while (SUCCEEDED(symbols->Next(1, &symbol, &count)) && count == 1) {
       if (SUCCEEDED(symbol->get_relativeVirtualAddress(&rva))) {
@@ -734,7 +791,7 @@ bool PDBSourceLineWriter::PrintFunctions() {
   // of those blocks and print out an extra FUNC line for blocks
   // that are not contained in their parent functions.
   CComPtr<IDiaEnumSymbols> compilands;
-  if (FAILED(global->findChildren(SymTagCompiland, NULL,
+  if (FAILED(global->findChildren(SymTagCompiland, nullptr,
                                   nsNone, &compilands))) {
     fprintf(stderr, "findChildren failed on the global\n");
     return false;
@@ -743,7 +800,7 @@ bool PDBSourceLineWriter::PrintFunctions() {
   CComPtr<IDiaSymbol> compiland;
   while (SUCCEEDED(compilands->Next(1, &compiland, &count)) && count == 1) {
     CComPtr<IDiaEnumSymbols> blocks;
-    if (FAILED(compiland->findChildren(SymTagBlock, NULL,
+    if (FAILED(compiland->findChildren(SymTagBlock, nullptr,
                                        nsNone, &blocks))) {
       fprintf(stderr, "findChildren failed on a compiland\n");
       return false;
@@ -783,17 +840,16 @@ bool PDBSourceLineWriter::PrintFunctions() {
 }
 
 void PDBSourceLineWriter::PrintInlineOrigins() const {
-  struct OriginCompare {
-    bool operator()(const InlineOrigin lhs, const InlineOrigin rhs) const {
-      return lhs.id < rhs.id;
-    }
-  };
-  set<InlineOrigin, OriginCompare> origins;
-  // Sort by origin id.
-  for (auto const& origin : inline_origins_)
-    origins.insert(origin.second);
-  for (auto o : origins) {
-    fprintf(output_, "INLINE_ORIGIN %d %ls\n", o.id, o.name.c_str());
+  // Inline origins' unique identifiers are assigned sequentially starting from
+  // zero. Make a reverse-mapping from ids to names, then print the names in
+  // order of id.
+  vector<const wstring*> names_by_id(inline_origins_.size());
+  for (const auto& origin : inline_origins_) {
+    names_by_id[origin.second] = &origin.first;
+  }
+  int id = 0;
+  for (const wstring* name : names_by_id) {
+    fprintf(output_, "INLINE_ORIGIN %d %ls\n", id++, name->c_str());
   }
 }
 
@@ -838,19 +894,7 @@ bool PDBSourceLineWriter::GetInlines(IDiaSymbol* block,
       }
       dia_line.Release();
     }
-    BSTR name;
-    callsite->get_name(&name);
-    if (SysStringLen(name) == 0) {
-      name = SysAllocString(L"<name omitted>");
-    }
-    auto iter = inline_origins_.find(name);
-    if (iter == inline_origins_.end()) {
-      InlineOrigin origin;
-      origin.id = inline_origins_.size();
-      origin.name = name;
-      inline_origins_[name] = origin;
-    }
-    new_inline->SetOriginId(inline_origins_[name].id);
+    new_inline->SetOriginId(GetCallsiteInlineOriginId(callsite));
     new_inline->SetCallSiteLine(call_site_line);
     new_inline->SetCallSiteFileId(file_id);
     // Go to next level.
@@ -1091,7 +1135,7 @@ bool PDBSourceLineWriter::PrintCodePublicSymbol(IDiaSymbol* symbol,
     if (rva == 0)
       break;
 
-    CComPtr<IDiaSymbol> next_sym = NULL;
+    CComPtr<IDiaSymbol> next_sym = nullptr;
     LONG displacement;
     if (FAILED(session_->findSymbolByRVAEx(rva, SymTagPublicSymbol, &next_sym,
                                            &displacement))) {
@@ -1239,6 +1283,11 @@ bool PDBSourceLineWriter::GetSymbolFunctionName(IDiaSymbol* function,
   } else {
     StripLlvmSuffixAndUndecorate(name);
 
+    // DIA 14.24 and newer's `get_undecoratedNameEx()` prepends `static` and
+    // the return type to its output for functions with internal linkage.
+    // Remove these if present.
+    StripStaticAndReturnType(function, name);
+
     // C++ uses a bogus "void" argument for functions and methods that don't
     // take any parameters.  Take it out of the undecorated name because it's
     // ugly and unnecessary.
@@ -1300,7 +1349,7 @@ int PDBSourceLineWriter::GetFunctionStackParamSize(IDiaSymbol* function) {
 
   // Gather the symbols corresponding to data.
   CComPtr<IDiaEnumSymbols> data_children;
-  if (FAILED(function->findChildren(SymTagData, NULL, nsNone,
+  if (FAILED(function->findChildren(SymTagData, nullptr, nsNone,
                                     &data_children))) {
     return 0;
   }
@@ -1426,7 +1475,7 @@ bool PDBSourceLineWriter::WriteSymbols(FILE* symbol_file) {
   ret = ret && PrintSourceFiles() && PrintFunctions() && PrintFrameData();
   PrintInlineOrigins();
 
-  output_ = NULL;
+  output_ = nullptr;
   return ret;
 }
 

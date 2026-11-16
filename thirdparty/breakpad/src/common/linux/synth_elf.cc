@@ -9,8 +9,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "common/linux/elf_gnu_compat.h"
-#include "common/using_std_string.h"
+#include "common/memory_allocator.h"
 
 namespace google_breakpad {
 namespace synth_elf {
@@ -85,9 +89,9 @@ ELF::ELF(uint16_t machine,
   AddSection("", shn_undef, SHT_NULL);
 }
 
-int ELF::AddSection(const string& name, const Section& section,
-                    uint32_t type, uint32_t flags, uint64_t addr,
-                    uint32_t link, uint64_t entsize, uint64_t offset) {
+int ELF::AddSection(const std::string& name, const Section& section,
+                    uint32_t type, uint32_t flags, uint64_t addr, uint32_t link,
+                    uint64_t entsize, uint64_t offset) {
   Label offset_label;
   Label string_label(section_header_strings_.Add(name));
   size_t size = section.Size();
@@ -159,7 +163,7 @@ void ELF::AddSegment(int start, int end, uint32_t type, uint32_t flags) {
     if (sections_[i].type_ != SHT_NOBITS) {
       assert(!prev_was_nobits);
       // non SHT_NOBITS sections are 4-byte aligned (see AddSection)
-      size = (size + 3) & ~3;
+      size = PageAllocator::AlignUp(size, 4);
       filesz += size;
     } else {
       prev_was_nobits = true;
@@ -224,7 +228,7 @@ SymbolTable::SymbolTable(Endianness endianness,
   assert(addr_size_ == 4 || addr_size_ == 8);
 }
 
-void SymbolTable::AddSymbol(const string& name, uint32_t value,
+void SymbolTable::AddSymbol(const std::string& name, uint32_t value,
                             uint32_t size, unsigned info, uint16_t shndx) {
   assert(addr_size_ == 4);
   D32(table_.Add(name));
@@ -235,7 +239,7 @@ void SymbolTable::AddSymbol(const string& name, uint32_t value,
   D16(shndx);
 }
 
-void SymbolTable::AddSymbol(const string& name, uint64_t value,
+void SymbolTable::AddSymbol(const std::string& name, uint64_t value,
                             uint64_t size, unsigned info, uint16_t shndx) {
   assert(addr_size_ == 8);
   D32(table_.Add(name));
@@ -246,8 +250,8 @@ void SymbolTable::AddSymbol(const string& name, uint64_t value,
   D64(size);
 }
 
-void Notes::AddNote(int type, const string& name, const uint8_t* desc_bytes,
-                    size_t desc_size) {
+void Notes::AddNote(int type, const std::string& name,
+                    const uint8_t* desc_bytes, size_t desc_size) {
   // Elf32_Nhdr and Elf64_Nhdr are exactly the same.
   Elf32_Nhdr note_header;
   memset(&note_header, 0, sizeof(note_header));

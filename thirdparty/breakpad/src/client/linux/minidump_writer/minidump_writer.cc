@@ -50,6 +50,7 @@
 #include "client/linux/minidump_writer/minidump_writer.h"
 #include "client/minidump_file_writer-inl.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -143,9 +144,9 @@ class MinidumpWriter {
                  LinuxDumper* dumper)
       : fd_(minidump_fd),
         path_(minidump_path),
-        ucontext_(context ? &context->context : NULL),
+        ucontext_(context ? &context->context : nullptr),
 #if GOOGLE_BREAKPAD_CRASH_CONTEXT_HAS_FLOAT_STATE
-        float_state_(context ? &context->float_state : NULL),
+        float_state_(context ? &context->float_state : nullptr),
 #endif
         dumper_(dumper),
         minidump_size_limit_(-1),
@@ -245,7 +246,7 @@ class MinidumpWriter {
 
       header.get()->signature = MD_HEADER_SIGNATURE;
       header.get()->version = MD_HEADER_VERSION;
-      header.get()->time_date_stamp = time(NULL);
+      header.get()->time_date_stamp = time(nullptr);
       header.get()->stream_count = kNumWriters;
       header.get()->stream_directory_rva = dir.position();
     }
@@ -325,7 +326,7 @@ class MinidumpWriter {
 
   bool FillThreadStack(MDRawThread* thread, uintptr_t stack_pointer,
                        uintptr_t pc, int max_stack_len, uint8_t** stack_copy) {
-    *stack_copy = NULL;
+    *stack_copy = nullptr;
     const void* stack;
     size_t stack_len;
 
@@ -553,6 +554,12 @@ class MinidumpWriter {
       return false;
     }
 
+    // The header mapping emits the whole split image; emitting this follower
+    // would create an overlapping module.
+    if (mapping.split_image.follower) {
+      return false;
+    }
+
     return true;
   }
 
@@ -610,7 +617,7 @@ class MinidumpWriter {
         continue;
 
       MDRawModule mod;
-      if (!FillRawModule(mapping, true, i, &mod, NULL))
+      if (!FillRawModule(mapping, true, i, &mod, nullptr))
         return false;
       list.CopyIndexAfterObject(j++, &mod, MD_MODULE_SIZE);
     }
@@ -638,7 +645,11 @@ class MinidumpWriter {
     my_memset(mod, 0, MD_MODULE_SIZE);
 
     mod->base_of_image = mapping.start_addr;
-    mod->size_of_image = mapping.size;
+    // Only dumper-derived mappings set |split_image|. Do not inspect it for
+    // caller-provided mappings; keep their declared size.
+    mod->size_of_image = (member && mapping.split_image.end_addr)
+                             ? mapping.split_image.end_addr - mapping.start_addr
+                             : mapping.size;
 
     char file_name[NAME_MAX];
     char file_path[NAME_MAX];
@@ -772,9 +783,11 @@ class MinidumpWriter {
     const std::vector<uint64_t> crash_exception_info =
         dumper_->crash_exception_info();
     stream->exception_record.number_parameters = crash_exception_info.size();
-    memcpy(stream->exception_record.exception_information,
-           crash_exception_info.data(),
-           sizeof(uint64_t) * crash_exception_info.size());
+    if (!crash_exception_info.empty()) {
+      memcpy(stream->exception_record.exception_information,
+             crash_exception_info.data(),
+             sizeof(uint64_t) * crash_exception_info.size());
+    }
     stream->thread_context = crashing_thread_context_;
 
     return true;
@@ -829,7 +842,7 @@ class MinidumpWriter {
     // The dynamic linker makes information available that helps gdb find all
     // DSOs loaded into the program. If this information is indeed available,
     // dump it to a MD_LINUX_DSO_DEBUG stream.
-    struct r_debug* r_debug = NULL;
+    struct r_debug* r_debug = nullptr;
     uint32_t dynamic_length = 0;
 
     for (int i = 0; ; ++i) {
@@ -939,8 +952,9 @@ class MinidumpWriter {
   void set_minidump_size_limit(off_t limit) { minidump_size_limit_ = limit; }
 
  private:
-  void* Alloc(unsigned bytes) {
-    return dumper_->allocator()->Alloc(bytes);
+  void* Alloc(unsigned bytes,
+              unsigned alignment = PageAllocator::kDefaultAllocAlignment) {
+    return dumper_->allocator()->Alloc(bytes, alignment);
   }
 
   pid_t GetCrashThread() const {
@@ -1329,8 +1343,9 @@ class MinidumpWriter {
       Buffers* next;
       size_t len;
       uint8_t data[kBufSize];
-    }* buffers = reinterpret_cast<Buffers*>(Alloc(sizeof(Buffers)));
-    buffers->next = NULL;
+    }* buffers =
+        static_cast<Buffers*>(Alloc(sizeof(Buffers), alignof(Buffers)));
+    buffers->next = nullptr;
     buffers->len = 0;
 
     size_t total = 0;
@@ -1346,9 +1361,10 @@ class MinidumpWriter {
       total += r;
       bufptr->len += r;
       if (bufptr->len == kBufSize) {
-        bufptr->next = reinterpret_cast<Buffers*>(Alloc(sizeof(Buffers)));
+        bufptr->next = static_cast<Buffers*>(
+            Alloc(sizeof(Buffers), alignof(Buffers)));
         bufptr = bufptr->next;
-        bufptr->next = NULL;
+        bufptr->next = nullptr;
         bufptr->len = 0;
       }
     }
@@ -1367,7 +1383,7 @@ class MinidumpWriter {
       // zero bytes being read after the final buffer was just allocated.
       if (buffers->len == 0) {
         // This can only occur with final buffer.
-        assert(buffers->next == NULL);
+        assert(buffers->next == nullptr);
         continue;
       }
       memory.Copy(pos, &buffers->data, buffers->len);
@@ -1396,7 +1412,7 @@ class MinidumpWriter {
       uts.release,
       uts.version,
       uts.machine,
-      NULL
+      nullptr
     };
     bool first_item = true;
     for (const char** cur_info = info_table; *cur_info; cur_info++) {
@@ -1477,7 +1493,7 @@ bool WriteMinidumpImpl(const char* minidump_path,
                        uintptr_t principal_mapping_address,
                        bool sanitize_stacks) {
   LinuxPtraceDumper dumper(crashing_process);
-  const ExceptionHandler::CrashContext* context = NULL;
+  const ExceptionHandler::CrashContext* context = nullptr;
   if (blob) {
     if (blob_size != sizeof(ExceptionHandler::CrashContext))
       return false;
@@ -1517,7 +1533,7 @@ bool WriteMinidump(int minidump_fd, pid_t crashing_process,
                    bool skip_stacks_if_mapping_unreferenced,
                    uintptr_t principal_mapping_address,
                    bool sanitize_stacks) {
-  return WriteMinidumpImpl(NULL, minidump_fd, -1,
+  return WriteMinidumpImpl(nullptr, minidump_fd, -1,
                            crashing_process, blob, blob_size,
                            MappingList(), AppMemoryList(),
                            skip_stacks_if_mapping_unreferenced,
@@ -1533,7 +1549,7 @@ bool WriteMinidump(const char* minidump_path, pid_t process,
   dumper.set_crash_thread(process_blamed_thread);
   MappingList mapping_list;
   AppMemoryList app_memory_list;
-  MinidumpWriter writer(minidump_path, -1, NULL, mapping_list,
+  MinidumpWriter writer(minidump_path, -1, nullptr, mapping_list,
                         app_memory_list, false, 0, false, &dumper);
   if (!writer.Init())
     return false;
@@ -1562,7 +1578,7 @@ bool WriteMinidump(int minidump_fd, pid_t crashing_process,
                    bool skip_stacks_if_mapping_unreferenced,
                    uintptr_t principal_mapping_address,
                    bool sanitize_stacks) {
-  return WriteMinidumpImpl(NULL, minidump_fd, -1, crashing_process,
+  return WriteMinidumpImpl(nullptr, minidump_fd, -1, crashing_process,
                            blob, blob_size,
                            mappings, appmem,
                            skip_stacks_if_mapping_unreferenced,
@@ -1594,7 +1610,7 @@ bool WriteMinidump(int minidump_fd, off_t minidump_size_limit,
                    bool skip_stacks_if_mapping_unreferenced,
                    uintptr_t principal_mapping_address,
                    bool sanitize_stacks) {
-  return WriteMinidumpImpl(NULL, minidump_fd, minidump_size_limit,
+  return WriteMinidumpImpl(nullptr, minidump_fd, minidump_size_limit,
                            crashing_process, blob, blob_size,
                            mappings, appmem,
                            skip_stacks_if_mapping_unreferenced,
@@ -1606,7 +1622,7 @@ bool WriteMinidump(const char* filename,
                    const MappingList& mappings,
                    const AppMemoryList& appmem,
                    LinuxDumper* dumper) {
-  MinidumpWriter writer(filename, -1, NULL, mappings, appmem,
+  MinidumpWriter writer(filename, -1, nullptr, mappings, appmem,
                         false, 0, false, dumper);
   if (!writer.Init())
     return false;

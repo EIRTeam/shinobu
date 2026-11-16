@@ -117,14 +117,13 @@ struct DwarfCUToModule::FilePrivate {
   std::map<uint64_t, Module::Function*> forward_ref_die_to_func;
 };
 
-DwarfCUToModule::FileContext::FileContext(const string& filename,
+DwarfCUToModule::FileContext::FileContext(const std::string& filename,
                                           Module* module,
                                           bool handle_inter_cu_refs)
     : filename_(filename),
       module_(module),
       handle_inter_cu_refs_(handle_inter_cu_refs),
-      file_private_(new FilePrivate()) {
-}
+      file_private_(new FilePrivate()) {}
 
 DwarfCUToModule::FileContext::~FileContext() {
   for (std::vector<uint8_t *>::iterator i = uncompressed_sections_.begin();
@@ -134,12 +133,12 @@ DwarfCUToModule::FileContext::~FileContext() {
 }
 
 void DwarfCUToModule::FileContext::AddSectionToSectionMap(
-    const string& name, const uint8_t* contents, uint64_t length) {
+    const std::string& name, const uint8_t* contents, uint64_t length) {
   section_map_[name] = std::make_pair(contents, length);
 }
 
 void DwarfCUToModule::FileContext::AddManagedSectionToSectionMap(
-    const string& name, uint8_t* contents, uint64_t length) {
+    const std::string& name, uint8_t* contents, uint64_t length) {
   section_map_[name] = std::make_pair(contents, length);
   uncompressed_sections_.push_back(contents);
 }
@@ -302,9 +301,9 @@ class DwarfCUToModule::GenericDIEHandler: public DIEHandler {
         parent_context_(parent_context),
         offset_(offset),
         declaration_(false),
-        specification_(NULL),
+        specification_(nullptr),
         no_specification(false),
-        abstract_origin_(NULL),
+        abstract_origin_(nullptr),
         forward_ref_die_offset_(0), specification_offset_(0) { }
 
   // Derived classes' ProcessAttributeUnsigned can defer to this to
@@ -321,9 +320,8 @@ class DwarfCUToModule::GenericDIEHandler: public DIEHandler {
 
   // Derived classes' ProcessAttributeReference can defer to this to
   // handle DW_AT_specification, or simply not override it.
-  void ProcessAttributeString(enum DwarfAttribute attr,
-                              enum DwarfForm form,
-                              const string& data);
+  void ProcessAttributeString(enum DwarfAttribute attr, enum DwarfForm form,
+                              const std::string& data);
 
  protected:
   // Compute and return the fully-qualified name of the DIE. If this
@@ -440,9 +438,7 @@ void DwarfCUToModule::GenericDIEHandler::ProcessAttributeReference(
 }
 
 void DwarfCUToModule::GenericDIEHandler::ProcessAttributeString(
-    enum DwarfAttribute attr,
-    enum DwarfForm form,
-    const string& data) {
+    enum DwarfAttribute attr, enum DwarfForm form, const std::string& data) {
   switch (attr) {
     case DW_AT_name:
       name_attribute_ =
@@ -450,7 +446,7 @@ void DwarfCUToModule::GenericDIEHandler::ProcessAttributeString(
       break;
     case DW_AT_MIPS_linkage_name:
     case DW_AT_linkage_name: {
-      string demangled;
+      std::string demangled;
       Language::DemangleResult result =
           cu_context_->language->DemangleName(data, &demangled);
       switch (result) {
@@ -525,7 +521,7 @@ StringView DwarfCUToModule::GenericDIEHandler::ComputeQualifiedName(
 
   // Prepare the return value before upcoming mutations possibly invalidate the
   // existing pointers.
-  string return_value;
+  std::string return_value;
   if (qualified_name) {
     return_value = qualified_name->str();
   } else if (unqualified_name && enclosing_name) {
@@ -672,7 +668,7 @@ DIEHandler* DwarfCUToModule::InlineHandler::FindChildHandler(
       return new LexicalBlockHandler(cu_context_, offset,
                                      inline_nest_level_ + 1, child_inlines_);
     default:
-      return NULL;
+      return nullptr;
   }
 }
 
@@ -884,7 +880,7 @@ DIEHandler* DwarfCUToModule::FuncHandler::FindChildHandler(
       if (handle_inline_)
         return new LexicalBlockHandler(cu_context_, offset, 0, child_inlines_);
     default:
-      return NULL;
+      return nullptr;
   }
 }
 
@@ -960,7 +956,7 @@ void DwarfCUToModule::FuncHandler::Finish() {
     StringView name = name_.empty() ? name_omitted : name_;
     // Create a Module::Function based on the data we've gathered, and
     // add it to the functions_ list.
-    scoped_ptr<Module::Function> func(new Module::Function(name, low_pc_));
+    std::unique_ptr<Module::Function> func(new Module::Function(name, low_pc_));
     func->ranges = ranges;
     func->parameter_size = 0;
     // If the name was unqualified, prefer the Extern name if there's a mismatch
@@ -1001,7 +997,7 @@ void DwarfCUToModule::FuncHandler::Finish() {
 }
 
 bool DwarfCUToModule::NamedScopeHandler::EndAttributes() {
-  child_context_.name = ComputeQualifiedName(NULL);
+  child_context_.name = ComputeQualifiedName(nullptr);
   if (child_context_.name.empty() && no_specification) {
     cu_context_->reporter->UnknownSpecification(offset_, specification_offset_);
   }
@@ -1022,7 +1018,7 @@ DIEHandler* DwarfCUToModule::NamedScopeHandler::FindChildHandler(
       return new NamedScopeHandler(cu_context_, &child_context_, offset,
                                    handle_inline_);
     default:
-      return NULL;
+      return nullptr;
   }
 }
 
@@ -1052,7 +1048,7 @@ void DwarfCUToModule::WarningReporter::UnknownAbstractOrigin(uint64_t offset,
           filename_.c_str(), offset, target);
 }
 
-void DwarfCUToModule::WarningReporter::MissingSection(const string& name) {
+void DwarfCUToModule::WarningReporter::MissingSection(const std::string& name) {
   CUHeading();
   fprintf(stderr, "%s: warning: couldn't find DWARF '%s' section\n",
           filename_.c_str(), name.c_str());
@@ -1099,7 +1095,7 @@ void DwarfCUToModule::WarningReporter::UnnamedFunction(uint64_t offset) {
           filename_.c_str(), offset);
 }
 
-void DwarfCUToModule::WarningReporter::DemangleError(const string& input) {
+void DwarfCUToModule::WarningReporter::DemangleError(const std::string& input) {
   CUHeading();
   fprintf(stderr, "%s: warning: failed to demangle %s\n",
           filename_.c_str(), input.c_str());
@@ -1200,7 +1196,7 @@ void DwarfCUToModule::ProcessAttributeUnsigned(enum DwarfAttribute attr,
 
 void DwarfCUToModule::ProcessAttributeString(enum DwarfAttribute attr,
                                              enum DwarfForm form,
-                                            const string& data) {
+                                             const std::string& data) {
   switch (attr) {
     case DW_AT_name:
       cu_context_->reporter->SetCUName(data);
@@ -1232,7 +1228,7 @@ DIEHandler* DwarfCUToModule::FindChildHandler(
       return new NamedScopeHandler(cu_context_.get(), child_context_.get(),
                                    offset, handle_inline);
     default:
-      return NULL;
+      return nullptr;
   }
 }
 
@@ -1267,9 +1263,13 @@ void DwarfCUToModule::SetLanguage(DwarfLanguage language) {
     // DWARF data for C should never include namespaces or functions
     // nested in struct types, but if it ever does, then C++'s
     // notation is probably not a bad choice for that.
-    default:
     case DW_LANG_ObjC:
+      cu_context_->language = Language::ObjectiveC;
+      break;
     case DW_LANG_ObjC_plus_plus:
+      cu_context_->language = Language::ObjectiveCPlusPlus;
+      break;
+    default:
     case DW_LANG_C:
     case DW_LANG_C89:
     case DW_LANG_C99:
@@ -1394,12 +1394,12 @@ void DwarfCUToModule::AssignLinesToFunctions() {
 
   // The last line that we used any piece of.  We use this only for
   // generating warnings.
-  const Module::Line* last_line_used = NULL;
+  const Module::Line* last_line_used = nullptr;
 
   // The last function and line we warned about --- so we can avoid
   // doing so more than once.
-  const Module::Function* last_function_cited = NULL;
-  const Module::Line* last_line_cited = NULL;
+  const Module::Function* last_function_cited = nullptr;
+  const Module::Line* last_line_cited = nullptr;
 
   // Prepare a sorted list of ranges with range-to-function mapping
   vector<FunctionRange> sorted_ranges;
@@ -1425,12 +1425,12 @@ void DwarfCUToModule::AssignLinesToFunctions() {
     line = &*line_it;
     current = std::min(range->address, line->address);
   } else if (line_it != lines_.end()) {
-    range = NULL;
+    range = nullptr;
     line = &*line_it;
     current = line->address;
   } else if (range_it != sorted_ranges.end()) {
     range = &*range_it;
-    line = NULL;
+    line = nullptr;
     current = range->address;
   } else {
     return;
@@ -1561,12 +1561,12 @@ void DwarfCUToModule::AssignLinesToFunctions() {
            && next_transition >= range_it->address
            && !within(*range_it, next_transition))
       range_it++;
-    range = (range_it != sorted_ranges.end()) ? &(*range_it) : NULL;
+    range = (range_it != sorted_ranges.end()) ? &(*range_it) : nullptr;
     while (line_it != lines_.end()
            && next_transition >= line_it->address
            && !within(*line_it, next_transition))
       line_it++;
-    line = (line_it != lines_.end()) ? &*line_it : NULL;
+    line = (line_it != lines_.end()) ? &*line_it : nullptr;
 
     // We must make progress.
     assert(next_transition > current);

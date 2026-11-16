@@ -63,7 +63,7 @@ CrashGenerationServer::CrashGenerationServer(
   OnClientExitingCallback exit_callback,
   void* exit_context,
   bool generate_dumps,
-  const string* dump_path) :
+  const std::string* dump_path) :
     server_fd_(listen_fd),
     dump_callback_(dump_callback),
     dump_context_(dump_context),
@@ -105,7 +105,7 @@ CrashGenerationServer::Start()
   control_pipe_in_ = control_pipe[0];
   control_pipe_out_ = control_pipe[1];
 
-  if (pthread_create(&thread_, NULL,
+  if (pthread_create(&thread_, nullptr,
                      ThreadMain, reinterpret_cast<void*>(this)))
     return false;
 
@@ -263,7 +263,7 @@ CrashGenerationServer::ClientEvent(short revents)
     return true;
   }
 
-  string minidump_filename;
+  std::string minidump_filename;
   if (!MakeMinidumpFilename(minidump_filename))
     return true;
 
@@ -309,7 +309,7 @@ CrashGenerationServer::ControlEvent(short revents)
 }
 
 bool
-CrashGenerationServer::MakeMinidumpFilename(string& outFilename)
+CrashGenerationServer::MakeMinidumpFilename(std::string& outFilename)
 {
   GUID guid;
   char guidString[kGUIDStringLength+1];
@@ -330,7 +330,7 @@ void*
 CrashGenerationServer::ThreadMain(void* arg)
 {
   reinterpret_cast<CrashGenerationServer*>(arg)->Run();
-  return NULL;
+  return nullptr;
 }
 
 }  // namespace google_breakpad

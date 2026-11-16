@@ -69,7 +69,7 @@ CrashGenerationServer::~CrashGenerationServer() {
 }
 
 bool CrashGenerationServer::Start() {
-  int thread_create_result = pthread_create(&server_thread_, NULL,
+  int thread_create_result = pthread_create(&server_thread_, nullptr,
                                             &WaitForMessages, this);
   started_ = thread_create_result == 0;
   return started_;
@@ -85,7 +85,7 @@ bool CrashGenerationServer::Stop() {
   const mach_msg_timeout_t kSendTimeoutMs = 2 * 1000;
   kern_return_t result = sender.SendMessage(quit_message, kSendTimeoutMs);
   if (result == KERN_SUCCESS) {
-    int thread_join_result = pthread_join(server_thread_, NULL);
+    int thread_join_result = pthread_join(server_thread_, nullptr);
     started_ = thread_join_result != 0;
   }
 
@@ -97,14 +97,14 @@ void* CrashGenerationServer::WaitForMessages(void* server) {
   CrashGenerationServer* self =
       reinterpret_cast<CrashGenerationServer*>(server);
   while (self->WaitForOneMessage()) {}
-  return NULL;
+  return nullptr;
 }
 
 bool CrashGenerationServer::WaitForOneMessage() {
   MachReceiveMessage message;
-  kern_return_t result = receive_port_.WaitForMessage(&message,
-                                                      MACH_MSG_TIMEOUT_NONE);
-  if (result == KERN_SUCCESS) {
+  kern_return_t kern_result =
+      receive_port_.WaitForMessage(&message, MACH_MSG_TIMEOUT_NONE);
+  if (kern_result == KERN_SUCCESS) {
     switch (message.GetMessageID()) {
       case kDumpRequestMessage: {
         ExceptionInfo& info = (ExceptionInfo&)*message.GetData();
@@ -123,7 +123,7 @@ bool CrashGenerationServer::WaitForOneMessage() {
           ScopedTaskSuspend suspend(remote_task);
 
           MinidumpGenerator generator(remote_task, handler_thread);
-          dump_path = generator.UniqueNameInDirectory(dump_dir_, NULL);
+          dump_path = generator.UniqueNameInDirectory(dump_dir_, nullptr);
         
           if (info.exception_type && info.exception_code) {
             generator.SetExceptionInformation(info.exception_type,
@@ -160,7 +160,7 @@ bool CrashGenerationServer::WaitForOneMessage() {
       case kQuitMessage:
         return false;
     }
-  } else {  // result != KERN_SUCCESS
+  } else {  // kern_result != KERN_SUCCESS
     return false;
   }
   return true;

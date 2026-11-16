@@ -30,20 +30,20 @@
 #include <config.h>  // Must come first
 #endif
 
-#include <algorithm>
-#include <cstdio>
+#include "client/mac/handler/minidump_generator.h"
 
+#include <assert.h>
+#include <CoreFoundation/CoreFoundation.h>
+#include <mach-o/dyld.h>
+#include <mach-o/loader.h>
 #include <mach/host_info.h>
 #include <mach/machine.h>
 #include <mach/vm_statistics.h>
-#include <mach-o/dyld.h>
-#include <mach-o/loader.h>
-#include <sys/sysctl.h>
+#include <stdio.h>
 #include <sys/resource.h>
+#include <sys/sysctl.h>
 
-#include <CoreFoundation/CoreFoundation.h>
-
-#include "client/mac/handler/minidump_generator.h"
+#include <algorithm>
 
 #if defined(HAS_ARM_SUPPORT) || defined(HAS_ARM64_SUPPORT)
 #include <mach/arm/thread_status.h>
@@ -83,8 +83,8 @@ MinidumpGenerator::MinidumpGenerator()
       crashing_task_(mach_task_self()),
       handler_thread_(mach_thread_self()),
       cpu_type_(DynamicImages::GetNativeCPUType()),
-      task_context_(NULL),
-      dynamic_images_(NULL),
+      task_context_(nullptr),
+      dynamic_images_(nullptr),
       memory_blocks_(&allocator_) {
   GatherSystemInformation();
 }
@@ -101,14 +101,14 @@ MinidumpGenerator::MinidumpGenerator(mach_port_t crashing_task,
       crashing_task_(crashing_task),
       handler_thread_(handler_thread),
       cpu_type_(DynamicImages::GetNativeCPUType()),
-      task_context_(NULL),
-      dynamic_images_(NULL),
+      task_context_(nullptr),
+      dynamic_images_(nullptr),
       memory_blocks_(&allocator_) {
   if (crashing_task != mach_task_self()) {
     dynamic_images_ = new DynamicImages(crashing_task_);
     cpu_type_ = dynamic_images_->GetCPUType();
   } else {
-    dynamic_images_ = NULL;
+    dynamic_images_ = nullptr;
     cpu_type_ = DynamicImages::GetNativeCPUType();
   }
 
@@ -134,11 +134,11 @@ void MinidumpGenerator::GatherSystemInformation() {
   CFStringRef vers_path =
     CFSTR("/System/Library/CoreServices/SystemVersion.plist");
   CFURLRef sys_vers =
-    CFURLCreateWithFileSystemPath(NULL,
+    CFURLCreateWithFileSystemPath(nullptr,
                                   vers_path,
                                   kCFURLPOSIXPathStyle,
                                   false);
-  CFReadStreamRef read_stream = CFReadStreamCreateWithFile(NULL, sys_vers);
+  CFReadStreamRef read_stream = CFReadStreamCreateWithFile(nullptr, sys_vers);
   CFRelease(sys_vers);
   if (!read_stream) {
     return;
@@ -147,7 +147,7 @@ void MinidumpGenerator::GatherSystemInformation() {
     CFRelease(read_stream);
     return;
   }
-  CFMutableDataRef data = NULL;
+  CFMutableDataRef data = nullptr;
   while (true) {
     // Actual data file tests: Mac at 480 bytes and iOS at 413 bytes.
     const CFIndex kMaxBufferLength = 1024;
@@ -157,13 +157,13 @@ void MinidumpGenerator::GatherSystemInformation() {
     if (num_bytes_read < 0) {
       if (data) {
         CFRelease(data);
-        data = NULL;
+        data = nullptr;
       }
       break;
     } else if (num_bytes_read == 0) {
       break;
     } else if (!data) {
-      data = CFDataCreateMutable(NULL, 0);
+      data = CFDataCreateMutable(nullptr, 0);
     }
     CFDataAppendBytes(data, data_bytes, num_bytes_read);
   }
@@ -174,7 +174,7 @@ void MinidumpGenerator::GatherSystemInformation() {
   }
   CFDictionaryRef list =
       static_cast<CFDictionaryRef>(CFPropertyListCreateWithData(
-          NULL, data, kCFPropertyListImmutable, NULL, NULL));
+          nullptr, data, kCFPropertyListImmutable, nullptr, nullptr));
   CFRelease(data);
   if (!list) {
     return;
@@ -202,8 +202,8 @@ void MinidumpGenerator::SetTaskContext(breakpad_ucontext_t* task_context) {
 
 string MinidumpGenerator::UniqueNameInDirectory(const string& dir,
                                                 string* unique_name) {
-  CFUUIDRef uuid = CFUUIDCreate(NULL);
-  CFStringRef uuid_cfstr = CFUUIDCreateString(NULL, uuid);
+  CFUUIDRef uuid = CFUUIDCreate(nullptr);
+  CFStringRef uuid_cfstr = CFUUIDCreateString(nullptr, uuid);
   CFRelease(uuid);
   string file_name(ConvertToString(uuid_cfstr));
   CFRelease(uuid_cfstr);
@@ -1071,9 +1071,8 @@ bool MinidumpGenerator::WriteMemoryListStream(
         ip_memory_d.start_of_memory_range =
           std::max(uintptr_t(addr),
                    uintptr_t(ip - (kIPMemorySize / 2)));
-        uintptr_t end_of_range = 
-          std::min(uintptr_t(ip + (kIPMemorySize / 2)),
-                   uintptr_t(addr + size));
+        uintptr_t end_of_range = std::min(uintptr_t(ip + (kIPMemorySize / 2)),
+                                          uintptr_t(addr + size));
         uintptr_t range_diff = end_of_range -
             static_cast<uintptr_t>(ip_memory_d.start_of_memory_range);
         ip_memory_d.memory.data_size = static_cast<uint32_t>(range_diff);
@@ -1185,7 +1184,7 @@ bool MinidumpGenerator::WriteSystemInfoStream(
   // CPU Information
   uint32_t number_of_processors;
   size_t len = sizeof(number_of_processors);
-  sysctlbyname("hw.ncpu", &number_of_processors, &len, NULL, 0);
+  sysctlbyname("hw.ncpu", &number_of_processors, &len, nullptr, 0);
   MDRawSystemInfo* info_ptr = info.get();
 
   switch (cpu_type_) {
@@ -1562,7 +1561,7 @@ bool MinidumpGenerator::WriteMiscInfoStream(MDRawDirectory* misc_info_stream) {
   uint mibsize = static_cast<uint>(sizeof(mib) / sizeof(mib[0]));
   struct kinfo_proc proc;
   size_t size = sizeof(proc);
-  if (sysctl(mib, mibsize, &proc, &size, NULL, 0) == 0) {
+  if (sysctl(mib, mibsize, &proc, &size, nullptr, 0) == 0) {
     info_ptr->process_create_time =
         static_cast<uint32_t>(proc.kp_proc.p_starttime.tv_sec);
   }
@@ -1571,11 +1570,11 @@ bool MinidumpGenerator::WriteMiscInfoStream(MDRawDirectory* misc_info_stream) {
   uint64_t speed;
   const uint64_t kOneMillion = 1000 * 1000;
   size = sizeof(speed);
-  sysctlbyname("hw.cpufrequency_max", &speed, &size, NULL, 0);
+  sysctlbyname("hw.cpufrequency_max", &speed, &size, nullptr, 0);
   info_ptr->processor_max_mhz = static_cast<uint32_t>(speed / kOneMillion);
   info_ptr->processor_mhz_limit = static_cast<uint32_t>(speed / kOneMillion);
   size = sizeof(speed);
-  sysctlbyname("hw.cpufrequency", &speed, &size, NULL, 0);
+  sysctlbyname("hw.cpufrequency", &speed, &size, nullptr, 0);
   info_ptr->processor_current_mhz = static_cast<uint32_t>(speed / kOneMillion);
 
   return true;
