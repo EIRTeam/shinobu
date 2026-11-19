@@ -1,9 +1,9 @@
 short_name = "ph_engine"
 name = "Project Heartbeat"
 major = 4
-minor = 6
-patch = 1
+minor = 7
+patch = 2
 status = "dev"
 module_config = ""
 website = "https://ph.eirteam.moe"
-docs = "latest"
+docs = "4.7"

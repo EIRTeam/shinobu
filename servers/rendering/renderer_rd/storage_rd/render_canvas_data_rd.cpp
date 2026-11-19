@@ -29,6 +29,8 @@
 /**************************************************************************/
 
 #include "render_canvas_data_rd.h"
+
+#include "core/object/class_db.h"
 #include "servers/rendering/renderer_rd/renderer_canvas_render_rd.h"
 
 RID RenderCanvasDataRD::get_screen_texture() const {
