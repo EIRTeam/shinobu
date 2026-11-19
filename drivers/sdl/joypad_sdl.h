@@ -45,7 +45,7 @@ public:
 
 	bool is_device_game_controller(int p_device_idx) const;
 	StringName get_device_guid(int p_device_idx) const;
-	uint64_t get_sdl_time_nsec() const;
+	static uint64_t get_sdl_time_nsec();
 
 private:
 	class Joypad : public Input::JoypadFeatures {

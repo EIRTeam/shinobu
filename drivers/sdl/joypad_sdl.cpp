@@ -323,7 +323,7 @@ StringName JoypadSDL::get_device_guid(int p_device_idx) const {
 	return joypads[p_device_idx].guid;
 }
 
-uint64_t JoypadSDL::get_sdl_time_nsec() const {
+uint64_t JoypadSDL::get_sdl_time_nsec() {
 	return SDL_GetTicksNS();
 }
 
