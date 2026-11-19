@@ -30,7 +30,10 @@
 
 #include "compositor_2d.h"
 
+#include "core/object/callable_mp.h"
+#include "core/object/class_db.h"
 #include "core/os/os.h"
+#include "servers/rendering/rendering_server.h"
 
 void Compositor2D::_render_callback(RenderCanvasDataRD *p_data) {
 	GDVIRTUAL_CALL(_render_callback, p_data);
